@@ -19,3 +19,6 @@ broadcast/
 # one-off local splice leftovers (not product)
 scripts/library-section.tsx.txt
 scripts/splice-broadsheet.mjs
+
+# no face pictures — text broadsheet only
+public/plates/
