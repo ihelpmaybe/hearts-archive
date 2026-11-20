@@ -1,0 +1,43 @@
+{
+  "name": "hearts-archive",
+  "private": true,
+  "version": "0.4.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "node sim/smoke.mjs",
+    "check": "node scripts/check.mjs",
+    "catalog": "node scripts/build-catalog.mjs",
+    "sim": "node sim/run-sim.mjs",
+    "sim:quick": "node sim/run-sim.mjs --users 100 --concurrency 20"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.57.17",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react-swc": "^3.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.46.4",
+    "vite": "^6.4.6",
+    "vitest": "^3.2.4"
+  }
+}
