@@ -1,0 +1,32 @@
+{
+  "id": "venus",
+  "name": "Sailor Venus",
+  "tagline": "Minako Aino",
+  "eyebrow": "Minako · Sailor Venus",
+  "swatch": "#ff8a1e",
+  "fonts": {
+    "display": "Syne",
+    "body": "DM Sans",
+    "google": "Syne:wght@600;700&family=DM+Sans:wght@400;500;600;700"
+  },
+  "vars": {
+    "--bg": "#120a07",
+    "--bg-glow": "radial-gradient(900px 520px at 8% -8%, rgba(255, 138, 31, 0.28) 0%, transparent 55%), radial-gradient(700px 420px at 92% 4%, rgba(240, 199, 94, 0.18) 0%, transparent 50%)",
+    "--panel": "#1c110c",
+    "--panel-2": "#26160f",
+    "--line": "#6b4224",
+    "--line-soft": "rgba(255, 138, 31, 0.22)",
+    "--text": "#fff6ec",
+    "--muted": "#c9a888",
+    "--accent": "#ff8a1f",
+    "--accent-hot": "#ffb347",
+    "--accent-dim": "#5c2e0a",
+    "--gold": "#f0c75e",
+    "--warn": "#ffc14d",
+    "--bad": "#ff6b6b",
+    "--ok": "#7dcea0",
+    "--radius": "14px",
+    "--font-display": "\"Syne\", \"Avenir Next\", sans-serif",
+    "--font-body": "\"DM Sans\", \"Segoe UI\", sans-serif"
+  }
+}

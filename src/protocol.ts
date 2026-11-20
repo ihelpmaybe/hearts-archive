@@ -249,8 +249,29 @@ export type PreparedPublish = {
   savedPct: number;
 };
 
+/** Heart's Archive writes are text-only (UTF-8). */
+export function isTextMime(mime: string): boolean {
+  const m = (mime || "").toLowerCase();
+  return (
+    m.startsWith("text/") ||
+    m.includes("json") ||
+    m.includes("xml") ||
+    m.includes("markdown") ||
+    m === "application/x-www-form-urlencoded"
+  );
+}
+
 export async function preparePublishPayload(file: File): Promise<PreparedPublish> {
-  const mimeType = file.type || "application/octet-stream";
+  const rawMime = file.type || "text/plain;charset=utf-8";
+  if (!isTextMime(rawMime) && rawMime !== "application/octet-stream") {
+    throw new Error("Text only — images, PDF, audio, and video are out.");
+  }
+  // octet-stream from a .txt paste still allowed; force archive mime
+  const mimeType = isTextMime(rawMime)
+    ? rawMime.includes("json")
+      ? rawMime
+      : "text/plain;charset=utf-8"
+    : "text/plain;charset=utf-8";
   const original = new Uint8Array(await file.arrayBuffer());
   if (original.length > MAX_PUBLISH_BYTES) {
     throw new Error(
@@ -385,16 +406,24 @@ export type PublishMetaInput = {
   type?: DocType;
 };
 
-export async function estimatePublishCost(opts: {
-  publicClient: PublicClient;
-  account: `0x${string}`;
+/**
+ * Free gas hint — zero RPC.
+ * Intrinsic calldata gas: 21_000 + 16 gas/byte (non-zero dominated for our payloads).
+ * Desk gas price default is a fixed Pulse-cheap guess (override via gasPriceWei).
+ */
+export const DESK_GAS_PRICE_WEI = 500_000_000n; // 0.5 gwei
+
+export function estimatePublishCostLocal(opts: {
   prepared: PreparedPublish;
   meta: PublishMetaInput;
-}): Promise<{ wei: bigint; pls: string; txs: number }> {
-  const { publicClient, account, prepared, meta } = opts;
-  const sample = prepared.parts[0] ?? new Uint8Array([0]);
-  // New chunks = raw bytes as tx data (no JSON/base64 wrapper)
-  const chunkData = `0x${bytesToHex(sample)}` as Hex;
+  gasPriceWei?: bigint;
+}): { wei: bigint; pls: string; txs: number; free: true } {
+  const { prepared, meta } = opts;
+  let gasTotal = 0n;
+  for (const part of prepared.parts) {
+    // raw chunk calldata = part bytes
+    gasTotal += BigInt(21_000 + part.length * 16);
+  }
   const manifest = buildManifest({
     prepared,
     meta,
@@ -403,35 +432,14 @@ export async function estimatePublishCost(opts: {
         "0x0000000000000000000000000000000000000000000000000000000000000001" as Hash,
     ),
   });
-  const manifestData = utf8ToHex(JSON.stringify(manifest));
-
-  let gasChunk = 21000n;
-  let gasManifest = 21000n;
-  try {
-    gasChunk = await publicClient.estimateGas({
-      account,
-      to: zeroAddress,
-      data: chunkData,
-      value: 0n,
-    });
-  } catch {
-    gasChunk = BigInt(21000 + Math.ceil(chunkData.length / 2) * 16);
-  }
-  try {
-    gasManifest = await publicClient.estimateGas({
-      account,
-      to: ARCHIVE_SINK,
-      data: manifestData,
-      value: 0n,
-    });
-  } catch {
-    gasManifest = BigInt(21000 + Math.ceil(manifestData.length / 2) * 16);
-  }
-
-  const gasPrice = await publicClient.getGasPrice();
+  const manifestBytes = Math.ceil(
+    (utf8ToHex(JSON.stringify(manifest)).length - 2) / 2,
+  );
+  gasTotal += BigInt(21_000 + manifestBytes * 16);
+  const gasPrice = opts.gasPriceWei ?? DESK_GAS_PRICE_WEI;
   const txs = prepared.parts.length + 1;
-  const wei = gasPrice * (gasChunk * BigInt(prepared.parts.length) + gasManifest);
-  return { wei, pls: formatEther(wei), txs };
+  const wei = gasPrice * gasTotal;
+  return { wei, pls: formatEther(wei), txs, free: true };
 }
 
 function buildManifest(opts: {
@@ -570,7 +578,12 @@ export async function publishPrepared(opts: {
 export async function readDocument(
   publicClient: PublicClient,
   manifestHash: Hash,
-): Promise<{ meta: DocMeta; bytes: Uint8Array }> {
+): Promise<{
+  meta: DocMeta;
+  bytes: Uint8Array;
+  from?: string;
+  blockNumber?: bigint;
+}> {
   const tx = await publicClient.getTransaction({ hash: manifestHash });
   if (!tx.input || tx.input === "0x") {
     throw new Error("No calldata on that transaction");
@@ -619,6 +632,8 @@ export async function readDocument(
       mimeType: manifest.mimeType,
     },
     bytes: out,
+    from: (tx.from || "").toLowerCase(),
+    blockNumber: tx.blockNumber ?? undefined,
   };
 }
 

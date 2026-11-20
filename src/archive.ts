@@ -101,16 +101,32 @@ async function fetchAddressTxPage(
 /** Page through Blockscout until maxItems or no next page. */
 export async function fetchAddressTxsPaged(
   address: string,
-  opts?: { pageSize?: number; maxItems?: number; maxPages?: number },
+  opts?: {
+    pageSize?: number;
+    maxItems?: number;
+    maxPages?: number;
+    /** Stop after this many consecutive txs already in local catalog (incremental Sync). */
+    stopAfterKnown?: number;
+    knownHashes?: Set<string>;
+    /** Pause between pages — kinder to explorer. */
+    pageGapMs?: number;
+  },
 ): Promise<V2Tx[]> {
   const pageSize = opts?.pageSize ?? 50;
   const maxItems = opts?.maxItems ?? 500;
   const maxPages = opts?.maxPages ?? 20;
+  const stopAfterKnown = opts?.stopAfterKnown ?? 0;
+  const known = opts?.knownHashes;
+  const pageGapMs = opts?.pageGapMs ?? 120;
   const out: V2Tx[] = [];
   const seen = new Set<string>();
   let pageParams: PageParams | null = null;
+  let knownStreak = 0;
 
   for (let page = 0; page < maxPages && out.length < maxItems; page++) {
+    if (page > 0 && pageGapMs > 0) {
+      await new Promise((r) => setTimeout(r, pageGapMs));
+    }
     const { items, next } = await fetchAddressTxPage(address, {
       limit: pageSize,
       pageParams,
@@ -121,6 +137,16 @@ export async function fetchAddressTxsPaged(
       if (!h || seen.has(h)) continue;
       seen.add(h);
       out.push(tx);
+      if (known && stopAfterKnown > 0) {
+        if (known.has(h)) {
+          knownStreak += 1;
+          if (knownStreak >= stopAfterKnown) {
+            return out;
+          }
+        } else {
+          knownStreak = 0;
+        }
+      }
       if (out.length >= maxItems) break;
     }
     if (!next) break;
@@ -234,11 +260,16 @@ export function hasLiked(
 export async function listSinkBundle(opts?: {
   maxItems?: number;
   onlyArchiveKind?: boolean;
+  knownHashes?: Set<string>;
+  /** Default 8 — stop paging once we hit a streak of txs already cached. */
+  stopAfterKnown?: number;
 }): Promise<{ entries: ArchiveEntry[]; likes: LikeEntry[] }> {
   const rows = await fetchAddressTxsPaged(ARCHIVE_SINK, {
     pageSize: 50,
     maxItems: opts?.maxItems ?? 500,
     maxPages: 20,
+    knownHashes: opts?.knownHashes,
+    stopAfterKnown: opts?.stopAfterKnown ?? (opts?.knownHashes ? 8 : 0),
   });
   return {
     entries: collectManifests(rows, {
@@ -258,12 +289,14 @@ export async function listArchiveFromSink(opts?: {
 
 export async function listArchiveFromAuthor(
   author: `0x${string}`,
-  opts?: { maxItems?: number },
+  opts?: { maxItems?: number; knownHashes?: Set<string> },
 ): Promise<ArchiveEntry[]> {
   const rows = await fetchAddressTxsPaged(author, {
     pageSize: 50,
     maxItems: opts?.maxItems ?? 500,
     maxPages: 20,
+    knownHashes: opts?.knownHashes,
+    stopAfterKnown: opts?.knownHashes ? 8 : 0,
   });
   return collectManifests(rows, { onlyFrom: author });
 }

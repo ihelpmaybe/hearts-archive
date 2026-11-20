@@ -5,6 +5,8 @@ On-chain `kind` / app id stays `pulse-archive` for compatibility.
 
 **Status:** experimental desk tool — not public product infra.
 
+Lab fake posts stay **off** unless `?lab=1`, `VITE_LAB_SEED=1`, or the Lab seed checkbox.
+
 ## Quick start
 
 ```bash
@@ -24,6 +26,7 @@ npm run dev      # http://127.0.0.1:5177
 | `npm run lint` | ESLint |
 | `npm run smoke` | Protocol / explorer smoke (Node) |
 | `npm run sim:lab` | **Preferred** — local anvil publish/read/like (no Pulse trail) |
+| `npm run sim:dry` | One-shot Post→Sync→Like→Tip on anvil |
 | `npm run sim` | Foundry stress · 1000 users → `sim/out/` |
 | `npm run sim:quick` | Stress, 100 users |
 | `npm run catalog` | Optional static `public/catalog.json` |

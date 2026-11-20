@@ -1,5 +1,5 @@
-import { http, createConfig, fallback } from "wagmi";
-import { injected } from "wagmi/connectors";
+/** injected from wagmi core — not wagmi/connectors (avoids WC/Coinbase/Porto). */
+import { http, createConfig, fallback, injected } from "wagmi";
 import { pulsechain } from "wagmi/chains";
 
 const DEFAULT_RPCS = [

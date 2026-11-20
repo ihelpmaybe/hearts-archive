@@ -36,7 +36,12 @@ export function WalletBar({ onUseAsAuthor }: Props) {
   const { data: balance, isFetching: balLoading } = useBalance({
     address,
     chainId: pulsechain.id,
-    query: { enabled: !!address },
+    query: {
+      enabled: !!address,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchInterval: false,
+    },
   });
 
   const [menuOpen, setMenuOpen] = useState(false);

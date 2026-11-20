@@ -45,8 +45,14 @@ Count unique `(manifest, from)`. Tip (PLS to author) stays separate.
 
 ## Client rules (this app)
 
-- Skip gzip for image/video/audio/pdf/zip
+- **Text only** writes (`text/plain;charset=utf-8` / json). No image/PDF/audio/video publish.
+- **No NSFW / porn** in this client (CW flag removed; don’t post it).
+- Reader shows text; other mime from the feed → “not text” notice (Raven may still have binaries).
 - Refuse original body &gt; 150 KiB
 - Do not republish if same `sha256` already in shelf/catalog
-- Browse via explorer paging + local IndexedDB catalog
-- Like = on-chain sign-off to `…feed`
+- **Local-first:** catalog + opened docs + likes in IndexedDB. Boot paints local (no RPC). **Sync** pulls `…feed` (incremental). Re-open uses local copy.
+- **Lab seed** off by default (`?lab=1` / checkbox / `VITE_LAB_SEED=1`).
+- **RPC hygiene:** free local gas est; no duplicate getTx/getBlock on open; balance stale 60s; explorer page gaps.
+- Like = on-chain sign-off to `…feed` (wait receipt; cached locally)
+- Tip = PLS **or any ERC-20** to author — beside Like in the reader
+- `replaces` → earlier/newer version links in the reader

@@ -3,6 +3,22 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/viem")) return "viem";
+          if (
+            id.includes("node_modules/wagmi") ||
+            id.includes("node_modules/@wagmi")
+          ) {
+            return "wagmi";
+          }
+        },
+      },
+    },
+  },
   server: {
     port: 5177,
     strictPort: true,

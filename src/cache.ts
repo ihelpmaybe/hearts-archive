@@ -4,7 +4,8 @@ import type { DocType } from "./protocol";
 const DB_NAME = "pulse-archive-cache";
 const STORE = "docs";
 const DB_VERSION = 1;
-const MAX_DOCS = 40;
+/** Keep opened docs offline so re-reads skip RPC. */
+const MAX_DOCS = 500;
 
 export type CachedDoc = {
   hash: Hash;

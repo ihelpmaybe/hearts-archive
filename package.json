@@ -19,7 +19,10 @@
     "catalog": "node scripts/build-catalog.mjs",
     "sim": "node sim/run-sim.mjs",
     "sim:quick": "node sim/run-sim.mjs --users 100 --concurrency 20",
-    "sim:lab": "node sim/lab.mjs"
+    "sim:lab": "node sim/lab.mjs",
+    "sim:dry": "node sim/dry-run.mjs",
+    "sim:seed": "node sim/seed-news.mjs",
+    "mcp:themes": "node mcp-themes/server.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",

@@ -1,0 +1,31 @@
+{
+  "id": "pulse",
+  "name": "Pulse",
+  "tagline": "Violet → cyan",
+  "eyebrow": "PulseChain",
+  "swatch": "#00eaff",
+  "fonts": {
+    "display": "Segoe UI",
+    "body": "Segoe UI"
+  },
+  "vars": {
+    "--bg": "#080810",
+    "--bg-glow": "linear-gradient(160deg, rgba(128, 0, 255, 0.18) 0%, rgba(0, 128, 255, 0.10) 45%, transparent 70%), radial-gradient(ellipse 60% 40% at 0% 100%, rgba(0, 234, 255, 0.10), transparent 50%)",
+    "--panel": "#101018",
+    "--panel-2": "#161622",
+    "--line": "#3a3080",
+    "--line-soft": "#221e40",
+    "--text": "#e8eef8",
+    "--muted": "#8890b0",
+    "--accent": "#00eaff",
+    "--accent-hot": "#66f0ff",
+    "--accent-dim": "#0080ff",
+    "--gold": "#c4b0ff",
+    "--warn": "#e619e6",
+    "--bad": "#ff3344",
+    "--ok": "#00eaff",
+    "--radius": "12px",
+    "--font-display": "\"Segoe UI\", system-ui, sans-serif",
+    "--font-body": "\"Segoe UI\", system-ui, sans-serif"
+  }
+}

@@ -6,6 +6,7 @@ import {
   decodeChunkPayload,
   decodeChunkTxInput,
   docTypeFromMime,
+  estimatePublishCostLocal,
   hexToBytes,
   parseRouteHash,
   parseTags,
@@ -14,6 +15,7 @@ import {
   tryParseLike,
   utf8ToHex,
   CHUNK_BYTES,
+  type PreparedPublish,
 } from "./protocol";
 
 describe("shouldSkipGzip", () => {
@@ -85,6 +87,28 @@ describe("helpers", () => {
   it("exports caps", () => {
     expect(MAX_PUBLISH_BYTES).toBe(150 * 1024);
     expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+describe("estimatePublishCostLocal", () => {
+  it("is free and scales with parts", () => {
+    const one: PreparedPublish = {
+      mimeType: "text/plain",
+      type: "text",
+      originalBytes: 100,
+      storedBytes: 100,
+      encoding: "raw",
+      sha256: "ab".repeat(32),
+      parts: [new Uint8Array(100)],
+      savedPct: 0,
+    };
+    const two = { ...one, parts: [new Uint8Array(100), new Uint8Array(100)] };
+    const a = estimatePublishCostLocal({ prepared: one, meta: { title: "t" } });
+    const b = estimatePublishCostLocal({ prepared: two, meta: { title: "t" } });
+    expect(a.free).toBe(true);
+    expect(a.txs).toBe(2);
+    expect(b.txs).toBe(3);
+    expect(BigInt(b.wei) > BigInt(a.wei)).toBe(true);
   });
 });
 

@@ -1,13 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
+  useBalance,
   usePublicClient,
   useSendTransaction,
   useWalletClient,
 } from "wagmi";
 import { pulsechain } from "wagmi/chains";
-import { parseEther, type Hash } from "viem";
+import {
+  erc20Abi,
+  parseEther,
+  parseUnits,
+  type Hash,
+} from "viem";
 import { WalletBar } from "./WalletBar";
+import { ThemePicker } from "./ThemePicker";
+import { loadAndApplyTheme } from "./theme";
+import {
+  CUSTOM_TIP_ID,
+  TIP_PRESETS,
+  isAddressLike,
+  loadRecentTipTokens,
+  rememberTipToken,
+} from "./tipTokens";
 import {
   countLikesByManifest,
   dedupeBySha256,
@@ -25,6 +40,9 @@ import {
   upsertCatalog,
 } from "./catalog";
 import { loadLocalCatalog } from "./catalogLocal";
+import { loadLabSeed } from "./labSeed";
+import { isLabMode, setLabMode } from "./labMode";
+import { listCachedLikes, upsertCachedLikes } from "./likesCache";
 import { clearDraft, loadDraft, saveDraft } from "./drafts";
 import {
   clearIncomplete,
@@ -44,7 +62,7 @@ import {
   type SearchSort,
 } from "./search";
 import {
-  estimatePublishCost,
+  estimatePublishCostLocal,
   formatCitation,
   makeObjectUrl,
   parseRouteHash,
@@ -62,6 +80,12 @@ import {
   type PreparedPublish,
 } from "./protocol";
 import { listShelf, mergeShelfAndRemote, pinToShelf } from "./shelf";
+import {
+  applyLocalBackup,
+  buildLocalBackup,
+  downloadBackupJson,
+} from "./shelfBackup";
+import { collapseSeriesCards } from "./series";
 
 type LoadedDoc = {
   mimeType: string;
@@ -101,19 +125,19 @@ function formatPostedAt(unixSec?: number): string {
 
 function Preview({ doc }: { doc: LoadedDoc }) {
   const { mimeType, objectUrl } = doc;
-  if (mimeType.startsWith("image/")) {
-    return <img src={objectUrl} alt={doc.title || "on-chain file"} />;
-  }
-  if (mimeType.startsWith("video/")) {
-    return <video src={objectUrl} controls />;
-  }
-  if (mimeType.startsWith("audio/")) {
-    return <audio src={objectUrl} controls />;
-  }
-  if (mimeType.startsWith("text/") || mimeType.includes("json")) {
+  if (
+    mimeType.startsWith("text/") ||
+    mimeType.includes("json") ||
+    mimeType.includes("xml")
+  ) {
     return <TextPreview url={objectUrl} />;
   }
-  return <iframe title={doc.title || "on-chain document"} src={objectUrl} />;
+  return (
+    <p className="meta">
+      Not text ({mimeType || "unknown"}). This app is text-only — open the Tx
+      link if you need the raw payload.
+    </p>
+  );
 }
 
 function TextPreview({ url }: { url: string }) {
@@ -140,10 +164,18 @@ export function App() {
   const publicClient = usePublicClient({ chainId: pulsechain.id });
   const { data: walletClient } = useWalletClient({ chainId: pulsechain.id });
   const { sendTransactionAsync } = useSendTransaction();
+  const { data: plsBalance } = useBalance({
+    address,
+    chainId: pulsechain.id,
+    query: {
+      enabled: !!address,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    },
+  });
 
   const [hashInput, setHashInput] = useState("");
   const [authorInput, setAuthorInput] = useState("");
-  const [file, setFile] = useState<File | null>(null);
   const [bodyText, setBodyText] = useState("");
   const [title, setTitle] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
@@ -152,9 +184,9 @@ export function App() {
   const [lang, setLang] = useState("");
   const [license, setLicense] = useState("");
   const [replaces, setReplaces] = useState("");
-  const [cw, setCw] = useState(false);
   const [prepared, setPrepared] = useState<PreparedPublish | null>(null);
   const [gasHint, setGasHint] = useState<string | null>(null);
+  const [costWei, setCostWei] = useState<bigint | null>(null);
   const [reading, setReading] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [browsing, setBrowsing] = useState(false);
@@ -166,21 +198,33 @@ export function App() {
   const [lastManifest, setLastManifest] = useState<Hash | null>(null);
   const [entries, setEntries] = useState<ArchiveEntry[]>([]);
   const [filter, setFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [archiveOnly, setArchiveOnly] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<string>("text");
+  const archiveOnly = true;
+  const searchBodies = true;
   const [sortBy, setSortBy] = useState<SearchSort>("newest");
   const [datePreset, setDatePreset] = useState<DatePreset>("all");
   const [scope, setScope] = useState<SearchScope>("all");
-  const [hideCw, setHideCw] = useState(false);
-  const [searchBodies, setSearchBodies] = useState(true);
   const [bodyByHash, setBodyByHash] = useState<Map<string, string>>(new Map());
-  const [bodyIndexing, setBodyIndexing] = useState(false);
-  const [tipPls, setTipPls] = useState("1");
+  const [tipAmount, setTipAmount] = useState("1");
+  const [tipTokenId, setTipTokenId] = useState("PLS");
+  const [tipCustom, setTipCustom] = useState("");
+  const [tipping, setTipping] = useState(false);
+  const [tipError, setTipError] = useState<string | null>(null);
+  const [tipOk, setTipOk] = useState<string | null>(null);
   const [citeMsg, setCiteMsg] = useState<string | null>(null);
   const [loadSource, setLoadSource] = useState<string | null>(null);
   const [likes, setLikes] = useState<LikeEntry[]>([]);
   const [liking, setLiking] = useState(false);
   const [likeError, setLikeError] = useState<string | null>(null);
+  const [labNote, setLabNote] = useState<string | undefined>();
+  const [labOn, setLabOn] = useState(() => isLabMode());
+  const [expandSeries, setExpandSeries] = useState<Set<string>>(() => new Set());
+  const [recentTips, setRecentTips] = useState<`0x${string}`[]>(() =>
+    loadRecentTipTokens(),
+  );
+  const [likesRefreshing, setLikesRefreshing] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [likeOk, setLikeOk] = useState<string | null>(null);
   const [tab, setTab] = useState<"library" | "post">("library");
   const [incomplete, setIncomplete] = useState<IncompletePublish | null>(() =>
     loadIncomplete(),
@@ -190,9 +234,27 @@ export function App() {
   >([]);
 
   const wrongChain = isConnected && chainId !== pulsechain.id;
+  const entriesRef = useRef(entries);
+  const openHashRef = useRef<string | null>(null);
+  const loadRef = useRef<(h: Hash, opts?: { goRead?: boolean }) => Promise<void>>(
+    async () => {},
+  );
+
+  useEffect(() => {
+    entriesRef.current = entries;
+  }, [entries]);
 
   const refreshRecentLocal = useCallback(async () => {
-    setRecentLocal(await listCachedSummaries());
+    const next = await listCachedSummaries();
+    setRecentLocal((prev) => {
+      if (
+        prev.length === next.length &&
+        prev.every((p, i) => p.hash === next[i]?.hash && p.savedAt === next[i]?.savedAt)
+      ) {
+        return prev;
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -206,7 +268,6 @@ export function App() {
       setLang(stuck.lang);
       setLicense(stuck.license);
       setReplaces(stuck.replaces);
-      setCw(stuck.cw);
       setChunks(stuck.progress);
       return;
     }
@@ -219,7 +280,6 @@ export function App() {
     setLang(d.lang);
     setLicense(d.license);
     setReplaces(d.replaces);
-    setCw(d.cw);
     if (d.bodyText) setBodyText(d.bodyText);
   }, []);
 
@@ -232,11 +292,10 @@ export function App() {
       lang,
       license,
       replaces,
-      cw,
+      cw: false,
       bodyText,
-      fileName: file?.name,
     });
-  }, [title, tagsRaw, note, summary, lang, license, replaces, cw, bodyText, file]);
+  }, [title, tagsRaw, note, summary, lang, license, replaces, bodyText]);
 
   const applyLoaded = useCallback(
     (opts: {
@@ -310,14 +369,10 @@ export function App() {
         window.history.replaceState(null, "", path);
       }
       setHashInput(manifestHash);
-      setEntries((prev) =>
-        dedupeBySha256(
-          mergeShelfAndRemote(
-            listShelf(),
-            prev.filter((e) => e.hash !== manifestHash),
-          ),
-        ),
-      );
+      setEntries((prev) => {
+        if (prev.some((e) => e.hash === manifestHash)) return prev;
+        return dedupeBySha256(mergeShelfAndRemote(listShelf(), prev));
+      });
       void refreshRecentLocal();
     },
     [refreshRecentLocal],
@@ -325,13 +380,21 @@ export function App() {
 
   const load = useCallback(
     async (manifestHash: Hash, opts?: { goRead?: boolean }) => {
+      const key = manifestHash.toLowerCase();
+      // Same doc already showing — don't tear down reader (stops flash)
+      if (openHashRef.current === key && opts?.goRead !== false) {
+        return;
+      }
+      openHashRef.current = key;
       if (opts?.goRead !== false) setTab("library");
-      setReading(true);
       setReadError(null);
       setCiteMsg(null);
-      setLoadSource(null);
+      setLikeOk(null);
+      setTipOk(null);
+      setTipError(null);
       const cached = await getCachedDoc(manifestHash);
       try {
+        // Local-first: cached body = no RPC (cuts chain pressure on re-read)
         if (cached) {
           applyLoaded({
             manifestHash,
@@ -349,25 +412,33 @@ export function App() {
             chunkCount: cached.chunkCount,
             from: cached.from,
             postedAt: cached.postedAt,
-            source: "Opened from local cache (instant)",
+            source: "Local copy",
           });
-        }
-
-        if (!publicClient) {
-          if (!cached) setReadError("RPC not ready");
           return;
         }
 
-        const { meta, bytes } = await readDocument(publicClient, manifestHash);
-        const tx = await publicClient.getTransaction({ hash: manifestHash });
-        let postedAt = 0;
-        if (tx.blockNumber != null) {
-          const block = await publicClient.getBlock({
-            blockNumber: tx.blockNumber,
-          });
-          postedAt = Number(block.timestamp);
+        setReading(true);
+        setLoadSource(null);
+
+        if (!publicClient) {
+          setReadError(
+            typeof navigator !== "undefined" && navigator.onLine === false
+              ? "Offline and no local copy — open this link once online to cache it."
+              : "RPC not ready — Sync once while online, then re-open.",
+          );
+          return;
         }
-        const from = (tx.from || "").toLowerCase();
+
+        const { meta, bytes, from: txFrom } = await readDocument(
+          publicClient,
+          manifestHash,
+        );
+        // Prefer catalog timestamps — skip getBlock RPC
+        const known = entriesRef.current.find(
+          (e) => e.hash.toLowerCase() === key,
+        );
+        const from = (txFrom || known?.from || "").toLowerCase();
+        const postedAt = known?.timeStamp || 0;
         await putCachedDoc({
           hash: manifestHash,
           mimeType: meta.mimeType,
@@ -405,18 +476,19 @@ export function App() {
           chunkCount: meta.chunkHashes.length,
           from,
           postedAt: postedAt || undefined,
-          source: cached
-            ? "Refreshed from PulseChain (cache updated)"
-            : "Loaded from PulseChain",
+          source: "Fetched from Pulse · saved locally",
         });
       } catch (e) {
+        const offline =
+          typeof navigator !== "undefined" && navigator.onLine === false;
         const msg = e instanceof Error ? e.message : String(e);
-        if (cached) {
-          setLoadSource(`Still showing cached copy — chain refresh failed: ${msg}`);
-        } else {
-          setReadError(msg);
-          setDoc(null);
-        }
+        setReadError(
+          offline
+            ? "Offline and no local copy for this hash — open it once online."
+            : msg,
+        );
+        setDoc(null);
+        openHashRef.current = null;
       } finally {
         setReading(false);
       }
@@ -424,8 +496,40 @@ export function App() {
     [publicClient, applyLoaded],
   );
 
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
+
   const likeCounts = useMemo(() => countLikesByManifest(likes), [likes]);
 
+  /** Paint Library from IndexedDB / shelf — zero RPC. */
+  const loadLocalLibrary = useCallback(async () => {
+    setBrowsing(true);
+    setBrowseError(null);
+    try {
+      const shelf = listShelf();
+      const [staticCat, idbCat] = await Promise.all([
+        loadLocalCatalog(),
+        listCatalog(),
+      ]);
+      const base = dedupeBySha256(
+        mergeShelfAndRemote(
+          mergeShelfAndRemote(shelf, staticCat),
+          idbCat,
+        ),
+      );
+      setEntries(base);
+      const cachedLikes = await listCachedLikes();
+      if (cachedLikes.length) {
+        setLikes((prev) => dedupeLikes([...cachedLikes, ...prev]));
+      }
+    } finally {
+      setBrowsing(false);
+      void refreshRecentLocal();
+    }
+  }, [refreshRecentLocal]);
+
+  /** Pull …feed (and likes) from chain → merge into local catalog. */
   const refreshLibrary = useCallback(async () => {
     setBrowsing(true);
     setBrowseError(null);
@@ -440,33 +544,56 @@ export function App() {
         idbCat,
       ),
     );
+    setEntries(base);
     try {
       const author = authorInput.trim();
+      const knownHashes = new Set(base.map((e) => e.hash.toLowerCase()));
       if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
         const remote = await listArchiveFromAuthor(author as `0x${string}`, {
           maxItems: 500,
+          knownHashes,
         });
         await upsertCatalog(remote);
         setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
-        // Likes still live on the shared sink
         const bundle = await listSinkBundle({
           onlyArchiveKind: false,
           maxItems: 500,
+          knownHashes,
         });
-        setLikes(dedupeLikes(bundle.likes));
+        setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+        void upsertCachedLikes(bundle.likes);
       } else {
         const bundle = await listSinkBundle({
           onlyArchiveKind: archiveOnly,
           maxItems: 500,
+          knownHashes,
         });
         await upsertCatalog(bundle.entries);
         setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
-        setLikes(dedupeLikes(bundle.likes));
+        setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+        void upsertCachedLikes(bundle.likes);
+      }
+      try {
+        localStorage.setItem(
+          "hearts-archive-last-sync",
+          String(Date.now()),
+        );
+      } catch {
+        /* */
       }
     } catch (e) {
+      const offline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      const detail = offline
+        ? "You’re offline"
+        : e instanceof Error
+          ? e.message
+          : String(e);
       setBrowseError(
-        (e instanceof Error ? e.message : String(e)) +
-          ` — showing local (${base.length})`,
+        detail +
+          (base.length
+            ? ` — still showing your local library (${base.length}). Try Sync later.`
+            : " — nothing local yet. Connect, then Sync when the network is up."),
       );
       setEntries(base);
     } finally {
@@ -479,33 +606,61 @@ export function App() {
     const fromRoute = parseRouteHash(window.location.hash);
     if (fromRoute) {
       setHashInput(fromRoute);
-      void load(fromRoute);
+      void loadRef.current(fromRoute);
     }
     const onHash = () => {
       const h = parseRouteHash(window.location.hash);
       if (h) {
         setHashInput(h);
-        void load(h);
+        void loadRef.current(h);
       }
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [load]);
+  }, []);
 
   useEffect(() => {
-    void refreshLibrary();
-    void refreshRecentLocal();
+    void loadAndApplyTheme().catch(() => {
+      /* Venus CSS defaults still apply */
+    });
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const cachedLikes = await listCachedLikes();
+      if (cachedLikes.length) {
+        setLikes((prev) => dedupeLikes([...cachedLikes, ...prev]));
+      }
+      let seeded = false;
+      if (isLabMode()) {
+        const seed = await loadLabSeed();
+        if (seed) {
+          seeded = true;
+          setLabNote(seed.meta.note);
+          setLikes((prev) => dedupeLikes([...seed.likes, ...prev]));
+          setEntries((prev) =>
+            dedupeBySha256(mergeShelfAndRemote(seed.entries, prev)),
+          );
+          if (seed.likes?.length) void upsertCachedLikes(seed.likes);
+        }
+      }
+      await loadLocalLibrary();
+      const cat = await listCatalog();
+      if (cat.length === 0 && !seeded) {
+        await refreshLibrary();
+      }
+      await refreshRecentLocal();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const publishSource = useMemo(() => {
-    if (file) return file;
     const text = bodyText.trim();
     if (!text) return null;
     const name =
       (title.trim() || "note").replace(/[^\w.-]+/g, "_").slice(0, 48) + ".txt";
     return new File([text], name, { type: "text/plain;charset=utf-8" });
-  }, [file, bodyText, title]);
+  }, [bodyText, title]);
 
   useEffect(() => {
     let cancelled = false;
@@ -513,43 +668,37 @@ export function App() {
       if (!publishSource) {
         setPrepared(null);
         setGasHint(null);
+        setCostWei(null);
         return;
       }
       try {
         const p = await preparePublishPayload(publishSource);
         if (cancelled) return;
         setPrepared(p);
-        if (publicClient && address) {
-          const est = await estimatePublishCost({
-            publicClient,
-            account: address,
-            prepared: p,
-            meta: {
-              title,
-              tags: parseTags(tagsRaw),
-              note,
-              summary,
-              lang,
-              license,
-              replaces,
-              cw,
-            },
-          });
-          if (!cancelled) {
-            setGasHint(
-              `~${est.txs} txs · ~${Number(est.pls).toPrecision(4)} PLS` +
-                (p.encoding === "gzip" ? ` · gzip −${p.savedPct}%` : ""),
-            );
-          }
-        } else if (!cancelled) {
+        // Local heuristic only — no estimateGas / getGasPrice while typing
+        const est = estimatePublishCostLocal({
+          prepared: p,
+          meta: {
+            title,
+            tags: parseTags(tagsRaw),
+            note,
+            summary,
+            lang,
+            license,
+            replaces,
+          },
+        });
+        if (!cancelled) {
+          setCostWei(est.wei);
           setGasHint(
-            `~${p.parts.length + 1} txs` +
+            `~${est.txs} txs · ~${Number(est.pls).toPrecision(3)} PLS · free est` +
               (p.encoding === "gzip" ? ` · gzip −${p.savedPct}%` : ""),
           );
         }
       } catch (e) {
         if (!cancelled) {
           setPrepared(null);
+          setCostWei(null);
           setGasHint(e instanceof Error ? e.message : String(e));
         }
       }
@@ -557,19 +706,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [
-    publishSource,
-    publicClient,
-    address,
-    title,
-    tagsRaw,
-    note,
-    summary,
-    lang,
-    license,
-    replaces,
-    cw,
-  ]);
+  }, [publishSource, title, tagsRaw, note, summary, lang, license, replaces]);
 
   const localHashes = useMemo(() => {
     const shelf = new Set(listShelf().map((s) => s.hash.toLowerCase()));
@@ -583,12 +720,8 @@ export function App() {
       return;
     }
     let cancelled = false;
-    setBodyIndexing(true);
     void buildBodyIndex(entries.map((e) => e.hash)).then((map) => {
-      if (!cancelled) {
-        setBodyByHash(map);
-        setBodyIndexing(false);
-      }
+      if (!cancelled) setBodyByHash(map);
     });
     return () => {
       cancelled = true;
@@ -599,7 +732,6 @@ export function App() {
     const q = parseQuery(filter);
     let rows = entries.filter((e) => {
       if (typeFilter !== "all" && (e.type || "other") !== typeFilter) return false;
-      if (hideCw && e.cw) return false;
       if (scope === "local" && !localHashes.has(e.hash.toLowerCase())) return false;
       if (!applyDatePreset(e, datePreset)) return false;
       return matchEntry(e, q, {
@@ -612,7 +744,6 @@ export function App() {
     entries,
     filter,
     typeFilter,
-    hideCw,
     scope,
     localHashes,
     datePreset,
@@ -620,6 +751,16 @@ export function App() {
     searchBodies,
     bodyByHash,
   ]);
+
+  const libraryCards = useMemo(
+    () => collapseSeriesCards(filtered, expandSeries),
+    [filtered, expandSeries],
+  );
+
+  const shortFunds =
+    !!plsBalance &&
+    costWei != null &&
+    plsBalance.value < (costWei * 12n) / 10n;
 
   const tagSuggestions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -634,18 +775,16 @@ export function App() {
 
   const hasActiveSearch =
     !!filter.trim() ||
-    typeFilter !== "all" ||
+    typeFilter !== "text" ||
     datePreset !== "all" ||
     scope !== "all" ||
-    hideCw ||
     sortBy !== "newest";
 
   function clearSearch() {
     setFilter("");
-    setTypeFilter("all");
+    setTypeFilter("text");
     setDatePreset("all");
     setScope("all");
-    setHideCw(false);
     setSortBy("newest");
     setAuthorInput("");
   }
@@ -661,6 +800,16 @@ export function App() {
       if (chainId !== pulsechain.id) {
         throw new Error("Switch wallet to PulseChain (369) first");
       }
+      if (
+        !resume &&
+        costWei != null &&
+        plsBalance &&
+        plsBalance.value < (costWei * 12n) / 10n
+      ) {
+        throw new Error(
+          "Not enough PLS for the free gas estimate (+20% buffer). Add PLS or shorten the post.",
+        );
+      }
       if (!resume && prepared.sha256) {
         const known =
           entries.find((e) => e.sha256 === prepared.sha256) ||
@@ -668,13 +817,13 @@ export function App() {
           (await findCatalogBySha256(prepared.sha256));
         if (known) {
           throw new Error(
-            `Same file already archived (${known.hash.slice(0, 10)}…). Change content or clear to republish spam.`,
+            `Same text already archived (${known.hash.slice(0, 10)}…). Change the body to post again.`,
           );
         }
       }
       if (resume && incomplete && prepared.sha256 !== incomplete.sha256) {
         throw new Error(
-          `Reselect the same file (sha ${incomplete.sha256.slice(0, 12)}…) to retry.`,
+          `Body changed — restore the stuck draft text (sha ${incomplete.sha256.slice(0, 12)}…) to retry.`,
         );
       }
       const tags = parseTags(tagsRaw);
@@ -689,7 +838,6 @@ export function App() {
             lang,
             license,
             replaces,
-            cw,
           },
           walletClient,
           publicClient,
@@ -717,7 +865,7 @@ export function App() {
               lang,
               license,
               replaces,
-              cw,
+              cw: false,
             });
             setIncomplete(row);
           },
@@ -738,21 +886,44 @@ export function App() {
         replaces: replaces.trim() || undefined,
         chunkCount: chunkHashes.length,
         kind: "pulse-archive" as const,
-        cw,
+        cw: false,
       };
       pinToShelf(shelfRow);
       await upsertCatalog([shelfRow]);
+      const textBytes = new TextEncoder().encode(
+        bodyText.trim() ? bodyText : " ",
+      );
+      await putCachedDoc({
+        hash: manifestHash,
+        mimeType: mimeType || "text/plain;charset=utf-8",
+        title: shelfRow.title,
+        tags,
+        note: shelfRow.note,
+        summary: shelfRow.summary,
+        type: prepared.type,
+        sha256,
+        encoding: prepared.encoding,
+        replaces: shelfRow.replaces,
+        cw: false,
+        from: address.toLowerCase(),
+        postedAt: shelfRow.timeStamp,
+        chunkCount: chunkHashes.length,
+        bytes: textBytes.buffer.slice(
+          textBytes.byteOffset,
+          textBytes.byteOffset + textBytes.byteLength,
+        ) as ArrayBuffer,
+        savedAt: Date.now(),
+      });
       clearDraft();
       clearIncomplete();
       setIncomplete(null);
       setBodyText("");
-      setFile(null);
       setChunks([]);
       setLastManifest(manifestHash);
       window.location.hash = sharePath(manifestHash);
       setTab("library");
       await load(manifestHash);
-      await refreshLibrary();
+      void refreshLibrary();
     } catch (e) {
       setPubError(e instanceof Error ? e.message : String(e));
       setIncomplete(loadIncomplete());
@@ -775,14 +946,133 @@ export function App() {
   }
 
   async function tipAuthor() {
-    if (!doc?.from) return;
-    const value = parseEther(tipPls || "0");
-    if (value <= 0n) return;
-    await sendTransactionAsync({
-      to: doc.from as `0x${string}`,
-      value,
-      chainId: pulsechain.id,
-    });
+    if (!doc?.from || !walletClient || !publicClient || !address) return;
+    if (wrongChain) {
+      setTipError("Switch to Pulse");
+      return;
+    }
+    setTipping(true);
+    setTipError(null);
+    setTipOk(null);
+    try {
+      const to = doc.from as `0x${string}`;
+      const preset = TIP_PRESETS.find((t) => t.id === tipTokenId);
+
+      if (tipTokenId === "PLS" || (preset && !preset.address)) {
+        const value = parseEther(tipAmount || "0");
+        if (value <= 0n) throw new Error("Enter an amount");
+        const hash = await sendTransactionAsync({
+          to,
+          value,
+          chainId: pulsechain.id,
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") throw new Error("Tip reverted");
+        setTipOk(`Sent ${tipAmount} PLS`);
+        return;
+      }
+
+      let tokenAddr: `0x${string}`;
+      let decimals = preset?.decimals ?? 18;
+      let symbol = preset?.symbol || "token";
+
+      if (tipTokenId === CUSTOM_TIP_ID) {
+        if (!isAddressLike(tipCustom)) {
+          throw new Error("Paste a token contract 0x…");
+        }
+        tokenAddr = tipCustom.trim() as `0x${string}`;
+        try {
+          decimals = Number(
+            await publicClient.readContract({
+              address: tokenAddr,
+              abi: erc20Abi,
+              functionName: "decimals",
+            }),
+          );
+          symbol = (await publicClient.readContract({
+            address: tokenAddr,
+            abi: erc20Abi,
+            functionName: "symbol",
+          })) as string;
+        } catch {
+          decimals = 18;
+        }
+      } else if (preset?.address) {
+        tokenAddr = preset.address;
+      } else {
+        throw new Error("Pick a token");
+      }
+
+      const value = parseUnits(tipAmount || "0", decimals);
+      if (value <= 0n) throw new Error("Enter an amount");
+      const hash = await walletClient.writeContract({
+        address: tokenAddr,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [to, value],
+        account: address,
+        chain: pulsechain,
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Tip reverted");
+      setRecentTips(rememberTipToken(tokenAddr));
+      setTipOk(`Sent ${tipAmount} ${symbol}`);
+    } catch (e) {
+      setTipError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTipping(false);
+    }
+  }
+
+  async function refreshLikesOnly() {
+    setLikesRefreshing(true);
+    setBrowseError(null);
+    try {
+      const known = new Set(likes.map((l) => l.hash.toLowerCase()));
+      const bundle = await listSinkBundle({
+        onlyArchiveKind: false,
+        maxItems: 400,
+        knownHashes: known,
+        stopAfterKnown: 12,
+      });
+      setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+      void upsertCachedLikes(bundle.likes);
+    } catch (e) {
+      const offline =
+        typeof navigator !== "undefined" && navigator.onLine === false;
+      setBrowseError(
+        offline
+          ? "Offline — likes stay on what you already cached."
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+    } finally {
+      setLikesRefreshing(false);
+    }
+  }
+
+  async function exportBackup() {
+    try {
+      const backup = await buildLocalBackup();
+      downloadBackupJson(backup);
+      setBackupMsg(
+        `Exported ${backup.shelf.length} shelf · ${backup.catalog.length} catalog`,
+      );
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function importBackupFile(file: File) {
+    try {
+      const raw = JSON.parse(await file.text()) as unknown;
+      const n = await applyLocalBackup(raw);
+      await loadLocalLibrary();
+      setBackupMsg(`Imported ${n.shelf} shelf · ${n.catalog} catalog`);
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function likeDoc() {
@@ -804,20 +1094,19 @@ export function App() {
         account: address,
         manifestHash: doc.manifestHash,
       });
-      setLikes((prev) =>
-        dedupeLikes([
-          {
-            hash: txHash,
-            from: address.toLowerCase(),
-            timeStamp: Math.floor(Date.now() / 1000),
-            manifest: doc.manifestHash.toLowerCase() as Hash,
-          },
-          ...prev,
-        ]),
-      );
-      setCiteMsg("Liked on-chain");
+      const row = {
+        hash: txHash,
+        from: address.toLowerCase(),
+        timeStamp: Math.floor(Date.now() / 1000),
+        manifest: doc.manifestHash.toLowerCase() as Hash,
+      };
+      setLikes((prev) => dedupeLikes([row, ...prev]));
+      void upsertCachedLikes([row]);
+      setLikeOk("Signed off — like confirmed on-chain");
+      setCiteMsg("Like confirmed");
     } catch (e) {
       setLikeError(e instanceof Error ? e.message : String(e));
+      setLikeOk(null);
     } finally {
       setLiking(false);
     }
@@ -831,18 +1120,80 @@ export function App() {
     return () => window.clearTimeout(t);
   }, [citeMsg]);
 
+  useEffect(() => {
+    if (!likeOk) return;
+    const t = window.setTimeout(() => setLikeOk(null), 3200);
+    return () => window.clearTimeout(t);
+  }, [likeOk]);
+
+  useEffect(() => {
+    if (!tipOk) return;
+    const t = window.setTimeout(() => setTipOk(null), 3200);
+    return () => window.clearTimeout(t);
+  }, [tipOk]);
+
+  useEffect(() => {
+    if (!backupMsg) return;
+    const t = window.setTimeout(() => setBackupMsg(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [backupMsg]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      if (tab !== "library") return;
+      if (e.key === "Escape") {
+        setDoc(null);
+        openHashRef.current = null;
+        setReadError(null);
+        setLoadSource(null);
+        if (window.location.hash.startsWith("#/doc/")) {
+          window.history.replaceState(null, "", "#/");
+        }
+        return;
+      }
+      if (e.key !== "j" && e.key !== "k") return;
+      e.preventDefault();
+      const hashes = libraryCards.map((c) => c.entry.hash.toLowerCase());
+      if (!hashes.length) return;
+      const cur = doc?.manifestHash.toLowerCase() || "";
+      let idx = hashes.indexOf(cur);
+      if (idx < 0) idx = e.key === "j" ? -1 : 0;
+      const next =
+        e.key === "j"
+          ? Math.min(hashes.length - 1, idx + 1)
+          : Math.max(0, idx <= 0 ? 0 : idx - 1);
+      const h = libraryCards[next]?.entry.hash;
+      if (h) void load(h);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tab, libraryCards, doc, load]);
+
   return (
     <div className="app">
       <header className="top">
         <div className="brand">
           <h1>Heart’s Archive</h1>
         </div>
-        <WalletBar
-          onUseAsAuthor={(a) => {
-            setAuthorInput(a);
-            setTab("library");
-          }}
-        />
+        <div className="top-right">
+          <ThemePicker />
+          <WalletBar
+            onUseAsAuthor={(a) => {
+              setAuthorInput(a);
+              setTab("library");
+            }}
+          />
+        </div>
       </header>
 
       <nav className="tabs" aria-label="Archive">
@@ -881,12 +1232,8 @@ export function App() {
               onChange={(e) => setTypeFilter(e.target.value)}
               aria-label="Type"
             >
-              <option value="all">Type</option>
-              <option value="pdf">pdf</option>
               <option value="text">text</option>
-              <option value="image">image</option>
-              <option value="video">video</option>
-              <option value="audio">audio</option>
+              <option value="all">all (feed)</option>
               <option value="json">json</option>
               <option value="html">html</option>
               <option value="other">other</option>
@@ -931,43 +1278,51 @@ export function App() {
               className="primary"
               disabled={browsing}
               onClick={() => void refreshLibrary()}
+              title="Pull new posts from …feed (uses RPC)"
             >
-              {browsing ? "…" : "Refresh"}
+              {browsing ? "…" : "Sync"}
             </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={likesRefreshing || browsing}
+              onClick={() => void refreshLikesOnly()}
+              title="Refresh likes only (lighter than full Sync)"
+            >
+              {likesRefreshing ? "…" : "♥"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void exportBackup()}
+              title="Export shelf + catalog JSON"
+            >
+              Export
+            </button>
+            <label className="ghost file-btn" title="Import backup JSON">
+              Import
+              <input
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) void importBackupFile(f);
+                }}
+              />
+            </label>
             {hasActiveSearch && (
               <button type="button" className="ghost" onClick={clearSearch}>
                 Clear
               </button>
             )}
-            <span className="count-pill">
-              {filtered.length}/{entries.length}
+            <span className="count-pill" title="Showing local catalog">
+              {libraryCards.length}/{entries.length} local
             </span>
           </div>
+          {backupMsg && <p className="meta">{backupMsg}</p>}
           <div className="toolbar tight checks">
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={archiveOnly}
-                onChange={(e) => setArchiveOnly(e.target.checked)}
-              />
-              archive
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={searchBodies}
-                onChange={(e) => setSearchBodies(e.target.checked)}
-              />
-              body{bodyIndexing ? "…" : ""}
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={hideCw}
-                onChange={(e) => setHideCw(e.target.checked)}
-              />
-              hide CW
-            </label>
             {tagSuggestions.slice(0, 8).map((t) => (
               <button
                 key={t}
@@ -987,6 +1342,39 @@ export function App() {
             ))}
           </div>
           {browseError && <p className="status bad">{browseError}</p>}
+          {labNote && labOn && (
+            <p className="meta lab-banner">{labNote}</p>
+          )}
+          <div className="lab-toggle-row">
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={labOn}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setLabMode(on);
+                  setLabOn(on);
+                  if (!on) {
+                    setLabNote(undefined);
+                  } else {
+                    void loadLabSeed().then((seed) => {
+                      if (!seed) return;
+                      setLabNote(seed.meta.note);
+                      setLikes((prev) =>
+                        dedupeLikes([...seed.likes, ...prev]),
+                      );
+                      setEntries((prev) =>
+                        dedupeBySha256(
+                          mergeShelfAndRemote(seed.entries, prev),
+                        ),
+                      );
+                    });
+                  }
+                }}
+              />
+              Lab seed
+            </label>
+          </div>
 
           <div className="library-split">
             <div className="library-list">
@@ -1008,26 +1396,29 @@ export function App() {
                   </div>
                 </div>
               )}
-              <div className="row">
-                <input
-                  type="text"
-                  placeholder="0x…"
-                  value={hashInput}
-                  onChange={(e) => setHashInput(e.target.value.trim())}
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={reading || !parseRouteHash(hashInput)}
-                  onClick={() => {
-                    const h = parseRouteHash(hashInput);
-                    if (h) void load(h);
-                  }}
-                >
-                  {reading ? "…" : "Open"}
-                </button>
-              </div>
+              <details className="hash-open">
+                <summary>Paste a share link / hash</summary>
+                <div className="row">
+                  <input
+                    type="text"
+                    placeholder="Paste 0x… or #/doc/0x…"
+                    value={hashInput}
+                    onChange={(e) => setHashInput(e.target.value.trim())}
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={reading || !parseRouteHash(hashInput)}
+                    onClick={() => {
+                      const h = parseRouteHash(hashInput);
+                      if (h) void load(h);
+                    }}
+                  >
+                    {reading ? "…" : "Open"}
+                  </button>
+                </div>
+              </details>
               {browsing && filtered.length === 0 && (
                 <div className="skeleton-grid" aria-hidden>
                   <div className="skeleton" />
@@ -1037,7 +1428,7 @@ export function App() {
                 </div>
               )}
               <div className="card-grid">
-                {filtered.map((e) => (
+                {libraryCards.map(({ entry: e, version, olderCount }) => (
                   <button
                     key={e.hash}
                     type="button"
@@ -1049,8 +1440,10 @@ export function App() {
                     onClick={() => void load(e.hash)}
                   >
                     <strong>
-                      {e.cw ? "⚠ " : ""}
                       {e.title}
+                      {version ? (
+                        <span className="series-badge"> v{version}</span>
+                      ) : null}
                     </strong>
                     {formatPostedAt(e.timeStamp) && (
                       <span className="when">
@@ -1078,6 +1471,26 @@ export function App() {
                       >
                         filter
                       </button>
+                      {olderCount > 0 && (
+                        <button
+                          type="button"
+                          className="linkish"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            const tip = e.hash.toLowerCase();
+                            setExpandSeries((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(tip)) next.delete(tip);
+                              else next.add(tip);
+                              return next;
+                            });
+                          }}
+                        >
+                          {expandSeries.has(e.hash.toLowerCase())
+                            ? "hide older"
+                            : `+${olderCount} older`}
+                        </button>
+                      )}
                     </span>
                     {e.tags.length > 0 && (
                       <span className="tags">{e.tags.join(" · ")}</span>
@@ -1085,30 +1498,46 @@ export function App() {
                   </button>
                 ))}
                 {!browsing && filtered.length === 0 && (
-                  <div className="empty">
-                    <p className="meta">No docs yet. Refresh or Post one.</p>
+                  <div className="empty first-path">
+                    <p className="empty-title">Nothing here yet</p>
+                    <ol className="empty-steps">
+                      <li>Connect wallet (Pulse)</li>
+                      <li>Open Post → write text</li>
+                      <li>Publish</li>
+                      <li>Hit Sync to pull the feed</li>
+                    </ol>
+                    <p className="meta">
+                      Or Sync now if others already posted to …feed.
+                    </p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="library-reader">
-              {readError && <p className="status bad">{readError}</p>}
+              {readError && (
+                <div className="status-block bad">
+                  <p className="status bad">{readError}</p>
+                  <p className="meta">
+                    If you’ve opened this before, try Sync — or pick another
+                    card from local.
+                  </p>
+                </div>
+              )}
               {!doc && !reading && !readError && (
                 <div className="reader-empty">
-                  <p>Pick a card or paste a hash.</p>
+                  <p>Pick a card on the left to read.</p>
                 </div>
               )}
               {reading && !doc && (
                 <div className="reader-empty">
-                  <p>Loading…</p>
+                  <p>Loading from Pulse…</p>
                 </div>
               )}
               {doc && (
                 <>
                   <div className="reader-head">
                     <h3 className="doc-title">
-                      {doc.cw ? "⚠ " : ""}
                       {doc.title || "(untitled)"}
                     </h3>
                     <div className="reader-actions">
@@ -1132,7 +1561,7 @@ export function App() {
                         title="Sign off on-chain (like)"
                       >
                         {liking
-                          ? "…"
+                          ? "Confirming…"
                           : `Like ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
                       </button>
                       <a
@@ -1171,32 +1600,120 @@ export function App() {
                       </a>
                     </div>
                   </div>
+                  {doc.from && isConnected && (
+                    <div className="tip-bar">
+                      <input
+                        type="text"
+                        value={tipAmount}
+                        onChange={(e) => setTipAmount(e.target.value)}
+                        aria-label="Tip amount"
+                        placeholder="Amt"
+                      />
+                      <select
+                        value={tipTokenId}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v.startsWith("recent:")) {
+                            setTipTokenId(CUSTOM_TIP_ID);
+                            setTipCustom(v.slice("recent:".length));
+                            return;
+                          }
+                          setTipTokenId(v);
+                        }}
+                        aria-label="Tip token"
+                      >
+                        {TIP_PRESETS.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.symbol}
+                          </option>
+                        ))}
+                        {recentTips.map((a) => (
+                          <option key={a} value={`recent:${a}`}>
+                            Recent {shortAddr(a)}
+                          </option>
+                        ))}
+                        <option value={CUSTOM_TIP_ID}>Custom…</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="primary"
+                        disabled={wrongChain || tipping || !walletClient}
+                        onClick={() => void tipAuthor()}
+                        title="Send tokens to author (not a like)"
+                      >
+                        {tipping ? "…" : "Tip"}
+                      </button>
+                      {tipTokenId === CUSTOM_TIP_ID && (
+                        <input
+                          type="text"
+                          className="tip-custom"
+                          placeholder="Token 0x…"
+                          value={tipCustom}
+                          onChange={(e) =>
+                            setTipCustom(e.target.value.trim())
+                          }
+                          spellCheck={false}
+                        />
+                      )}
+                    </div>
+                  )}
                   {likeError && <p className="status bad">{likeError}</p>}
+                  {likeOk && <p className="status ok">{likeOk}</p>}
+                  {tipError && <p className="status bad">{tipError}</p>}
+                  {tipOk && <p className="status ok">{tipOk}</p>}
                   <p className="meta reader-meta">
-                    {formatPostedAt(doc.postedAt) && (
-                      <>
-                        <span className="when">
-                          {formatPostedAt(doc.postedAt)}
-                        </span>
-                        {" · "}
-                      </>
-                    )}
-                    {doc.from && (
-                      <>
-                        {shortAddr(doc.from)}
-                        {" · "}
-                      </>
-                    )}
-                    {doc.type || doc.mimeType} ·{" "}
-                    {(doc.size / 1024).toFixed(1)} KB
-                    {doc.encoding === "gzip" ? " · gz" : ""}
-                    {` · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0} likes`}
-                    {loadSource ? ` · ${loadSource}` : ""}
+                    {doc.from ? shortAddr(doc.from) : "unknown"}
+                    {formatPostedAt(doc.postedAt)
+                      ? ` · ${formatPostedAt(doc.postedAt)}`
+                      : ""}
+                    {` · ♥ ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
+                    {loadSource === "Local copy" ? (
+                      <span className="quiet"> · local</span>
+                    ) : loadSource ? (
+                      <span className="quiet"> · {loadSource}</span>
+                    ) : null}
                   </p>
+                  {(doc.replaces ||
+                    entries.some(
+                      (e) =>
+                        e.replaces?.toLowerCase() ===
+                        doc.manifestHash.toLowerCase(),
+                    )) && (
+                    <div className="series-nav">
+                      {doc.replaces &&
+                        /^0x[a-fA-F0-9]{64}$/.test(doc.replaces) && (
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() =>
+                            void load(doc.replaces!.toLowerCase() as Hash)
+                          }
+                        >
+                          ← Earlier version
+                        </button>
+                      )}
+                      {entries
+                        .filter(
+                          (e) =>
+                            e.replaces?.toLowerCase() ===
+                            doc.manifestHash.toLowerCase(),
+                        )
+                        .slice(0, 1)
+                        .map((e) => (
+                          <button
+                            key={e.hash}
+                            type="button"
+                            className="ghost"
+                            onClick={() => void load(e.hash)}
+                          >
+                            Newer version →
+                          </button>
+                        ))}
+                    </div>
+                  )}
                   {(doc.summary ||
                     doc.note ||
-                    (doc.tags && doc.tags.length > 0) ||
-                    (doc.from && isConnected)) && (
+                    (doc.tags && doc.tags.length > 0)) && (
                     <details className="more reader-more">
                       <summary>Details</summary>
                       {doc.summary && <p className="note">{doc.summary}</p>}
@@ -1204,24 +1721,12 @@ export function App() {
                       {doc.tags && doc.tags.length > 0 && (
                         <p className="tags">{doc.tags.join(" · ")}</p>
                       )}
-                      {doc.from && isConnected && (
-                        <div className="row tip-row">
-                          <input
-                            type="text"
-                            value={tipPls}
-                            onChange={(e) => setTipPls(e.target.value)}
-                            style={{ maxWidth: "5rem" }}
-                            aria-label="Tip PLS"
-                          />
-                          <button
-                            type="button"
-                            className="primary"
-                            disabled={wrongChain}
-                            onClick={() => void tipAuthor()}
-                          >
-                            Tip
-                          </button>
-                        </div>
+                      {(doc.size > 0 || doc.encoding) && (
+                        <p className="meta">
+                          {(doc.size / 1024).toFixed(1)} KB
+                          {doc.encoding === "gzip" ? " · gzip" : ""}
+                          {doc.type ? ` · ${doc.type}` : ""}
+                        </p>
                       )}
                     </details>
                   )}
@@ -1240,9 +1745,10 @@ export function App() {
           {incomplete && (
             <div className="incomplete-rail">
               <p className="meta" style={{ margin: 0 }}>
-                <strong>Stuck</strong> · {incomplete.title} ·{" "}
-                {incompleteDoneCount(incomplete)}/{incomplete.partsCount} ·{" "}
-                reselect same file
+                <strong>Publish paused</strong> — “{incomplete.title}” is{" "}
+                {incompleteDoneCount(incomplete)} of {incomplete.partsCount}{" "}
+                done. Don’t change the text — hit Retry to finish, or Give up
+                to drop it.
               </p>
               <div className="row wrap" style={{ margin: 0 }}>
                 <button
@@ -1256,20 +1762,26 @@ export function App() {
                   }
                   onClick={() => void runPublish(true)}
                 >
-                  Retry
+                  {publishing ? "Finishing…" : "Retry"}
                 </button>
                 <button
                   type="button"
                   className="ghost"
+                  disabled={publishing}
                   onClick={() => {
                     clearIncomplete();
                     setIncomplete(null);
                     setChunks([]);
                   }}
                 >
-                  Dismiss
+                  Give up
                 </button>
               </div>
+              {prepared && prepared.sha256 !== incomplete.sha256 && (
+                <p className="status bad" style={{ margin: "0.35rem 0 0" }}>
+                  Text changed — paste the original draft back to Retry.
+                </p>
+              )}
             </div>
           )}
           <div className="post-layout">
@@ -1285,32 +1797,9 @@ export function App() {
               <textarea
                 placeholder="Write text…"
                 value={bodyText}
-                onChange={(e) => {
-                  setBodyText(e.target.value);
-                  if (e.target.value && file) setFile(null);
-                }}
-                rows={12}
-                disabled={!!file}
+                onChange={(e) => setBodyText(e.target.value)}
+                rows={14}
               />
-              <div className="row file-row">
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    const next = e.target.files?.[0] ?? null;
-                    setFile(next);
-                    if (next) setBodyText("");
-                  }}
-                />
-                {file && (
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => setFile(null)}
-                  >
-                    Clear file
-                  </button>
-                )}
-              </div>
               <details className="more">
                 <summary>More</summary>
                 <div className="post-more-grid">
@@ -1351,14 +1840,6 @@ export function App() {
                     onChange={(e) => setReplaces(e.target.value.trim())}
                     spellCheck={false}
                   />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={cw}
-                      onChange={(e) => setCw(e.target.checked)}
-                    />
-                    CW
-                  </label>
                 </div>
               </details>
             </div>
@@ -1380,11 +1861,16 @@ export function App() {
                   <p className="meta">
                     {gasHint && !prepared
                       ? gasHint
-                      : "Text or file under cap."}
+                      : "Type some text (under cap)."}
                   </p>
                 )}
                 {gasHint && prepared && (
                   <p className="meta">{gasHint}</p>
+                )}
+                {shortFunds && prepared && (
+                  <p className="status bad">
+                    Wallet PLS looks short for this post (+20% buffer).
+                  </p>
                 )}
                 <div className="post-actions">
                   <button
@@ -1395,7 +1881,8 @@ export function App() {
                       !isConnected ||
                       publishing ||
                       wrongChain ||
-                      !walletClient
+                      !walletClient ||
+                      shortFunds
                     }
                     onClick={() => void runPublish(false)}
                   >
@@ -1417,14 +1904,12 @@ export function App() {
                       clearDraft();
                       setTitle("");
                       setBodyText("");
-                      setFile(null);
                       setTagsRaw("");
                       setNote("");
                       setSummary("");
                       setLang("");
                       setLicense("");
                       setReplaces("");
-                      setCw(false);
                     }}
                   >
                     Clear

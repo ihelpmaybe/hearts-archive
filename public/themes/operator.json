@@ -1,0 +1,31 @@
+{
+  "id": "operator",
+  "name": "Operator",
+  "tagline": "Desk default",
+  "eyebrow": "Heart’s Archive",
+  "swatch": "#4aab8a",
+  "fonts": {
+    "display": "Segoe UI",
+    "body": "Segoe UI"
+  },
+  "vars": {
+    "--bg": "#000000",
+    "--bg-glow": "transparent",
+    "--panel": "#0c0c0c",
+    "--panel-2": "#141414",
+    "--line": "#2a2a2a",
+    "--line-soft": "#1a1a1a",
+    "--text": "#eceae4",
+    "--muted": "#8b8680",
+    "--accent": "#4aab8a",
+    "--accent-hot": "#6bc4a4",
+    "--accent-dim": "#2f6f5a",
+    "--gold": "#c9a84a",
+    "--warn": "#c9a84a",
+    "--bad": "#d97878",
+    "--ok": "#4aab8a",
+    "--radius": "12px",
+    "--font-display": "\"Segoe UI\", system-ui, sans-serif",
+    "--font-body": "\"Segoe UI\", system-ui, sans-serif"
+  }
+}
