@@ -497,6 +497,45 @@ a.link-btn {
   margin: 0 0 0.55rem;
 }
 
+.type-cut-tool {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.type-cut-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.45rem 0;
+}
+
+.type-cut-width {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.type-cut-width input[type="number"] {
+  width: 3.5rem;
+}
+
+.type-cut-preview {
+  margin: 0.4rem 0;
+  padding: 0.5rem;
+  max-height: 220px;
+  overflow: auto;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.5rem;
+  line-height: 1.05;
+  white-space: pre;
+  background: color-mix(in srgb, var(--text) 4%, var(--bg));
+  border: 1px solid var(--line-soft);
+}
+
 .soft-held {
   border: 1px solid var(--line-soft);
   padding: 0.65rem 0.7rem;

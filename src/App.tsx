@@ -22,6 +22,7 @@ import {
 } from "viem";
 import { WalletBar } from "./WalletBar";
 import { ThemePicker } from "./ThemePicker";
+import { TypeCutTool } from "./TypeCutTool";
 import { loadAndApplyTheme } from "./theme";
 import {
   CUSTOM_TIP_ID,
@@ -278,8 +279,24 @@ export function App() {
   const [likesRefreshing, setLikesRefreshing] = useState(false);
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [likeOk, setLikeOk] = useState<string | null>(null);
-  const [tab, setTab] = useState<"library" | "post">("library");
+  const [tab, setTab] = useState<"library" | "post">(() => {
+    try {
+      const t = sessionStorage.getItem("hearts-archive-tab");
+      if (t === "post" || t === "library") return t;
+    } catch {
+      /* */
+    }
+    return "library";
+  });
   const [editionDay, setEditionDay] = useState<"live" | string>("live");
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("hearts-archive-tab", tab);
+    } catch {
+      /* */
+    }
+  }, [tab]);
   const [incomplete, setIncomplete] = useState<IncompletePublish | null>(() =>
     loadIncomplete(),
   );
@@ -2149,33 +2166,37 @@ export function App() {
                   </p>
                 )}
                 {pubError && <p className="status bad">{pubError}</p>}
-                {lastManifest && (
-                  <div className="live-strip">
-                    <p className="status ok" style={{ margin: 0 }}>
-                      You’re live
-                    </p>
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={() => {
-                        setTab("library");
-                        void load(lastManifest);
-                      }}
-                    >
-                      Open in reader
-                    </button>
-                    <a
-                      className="ghost link-btn"
-                      href={SCAN_TX(lastManifest)}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={lastManifest}
-                    >
-                      Tx
-                    </a>
-                  </div>
-                )}
               </div>
+              <TypeCutTool
+                phraseDefault={title.trim() || "HEARTS ARCHIVE"}
+                onUse={(text) => setBodyText(text)}
+              />
+              {lastManifest && (
+                <div className="live-strip post-side-card">
+                  <p className="status ok" style={{ margin: 0 }}>
+                    You’re live
+                  </p>
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => {
+                      setTab("library");
+                      void load(lastManifest);
+                    }}
+                  >
+                    Open in reader
+                  </button>
+                  <a
+                    className="ghost link-btn"
+                    href={SCAN_TX(lastManifest)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={lastManifest}
+                  >
+                    Tx
+                  </a>
+                </div>
+              )}
               {chunks.length > 0 && (
                 <div className="chunks">
                   {chunks.map((c) => (
