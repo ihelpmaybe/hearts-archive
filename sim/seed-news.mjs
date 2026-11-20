@@ -275,6 +275,90 @@ async function main() {
       );
     }
 
+    // 3-card series via `replaces` (Library collapses to tip + “older”)
+    {
+      const account = authors[1];
+      const wallet = createWalletClient({
+        account,
+        chain: anvilChain,
+        transport: http(RPC),
+      });
+      const chapters = [
+        {
+          title: "Series demo — ch.1",
+          summary: "First version",
+          body: "Chapter 1 — the start of a replaces chain.\n",
+        },
+        {
+          title: "Series demo — ch.2",
+          summary: "Revised",
+          body: "Chapter 2 — replaces ch.1.\n",
+        },
+        {
+          title: "Series demo — ch.3",
+          summary: "Latest",
+          body: "Chapter 3 — tip of the series (Library shows v3).\n",
+        },
+      ];
+      let prevHash = null;
+      for (let i = 0; i < chapters.length; i++) {
+        const ch = chapters[i];
+        const body = Buffer.from(ch.body, "utf8");
+        const prepared = preparePayload(body, "text/plain;charset=utf-8");
+        const chunkHashes = [];
+        for (const part of prepared.parts) {
+          const hash = await wallet.sendTransaction({
+            account,
+            to: zeroAddress,
+            data: chunkCalldata(part),
+            value: 0n,
+            chain: anvilChain,
+          });
+          await publicClient.waitForTransactionReceipt({ hash });
+          chunkHashes.push(hash);
+        }
+        const manifest = buildManifest({
+          prepared,
+          meta: {
+            title: ch.title,
+            summary: ch.summary,
+            tags: ["series", "lab"],
+            type: "text",
+            replaces: prevHash || undefined,
+          },
+          chunkHashes,
+        });
+        const manifestHash = await wallet.sendTransaction({
+          account,
+          to: ARCHIVE_SINK,
+          data: manifestCalldata(manifest),
+          value: 0n,
+          chain: anvilChain,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: manifestHash });
+        const ts = Math.floor(Date.now() / 1000) - (chapters.length - i) * 120;
+        entries.unshift({
+          hash: manifestHash,
+          from: account.address.toLowerCase(),
+          timestamp: new Date(ts * 1000).toISOString(),
+          title: ch.title,
+          mimeType: "text/plain;charset=utf-8",
+          type: "text",
+          tags: ["series", "lab"],
+          summary: ch.summary,
+          sha256: prepared.sha256,
+          encoding: prepared.encoding,
+          replaces: prevHash || undefined,
+          kind: "pulse-archive",
+          chunkCount: chunkHashes.length,
+          cw: false,
+        });
+        bodies[manifestHash.toLowerCase()] = ch.body;
+        prevHash = manifestHash;
+        console.log(`  posted series ${i + 1}/${chapters.length}: ${ch.title}`);
+      }
+    }
+
     const seed = {
       generatedAt: new Date().toISOString(),
       source: "foundry-anvil",

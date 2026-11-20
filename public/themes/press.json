@@ -1,0 +1,33 @@
+{
+  "id": "press",
+  "name": "Press",
+  "tagline": "Broadsheet",
+  "swatch": "#111111",
+  "fonts": {
+    "display": "Oswald",
+    "body": "Newsreader",
+    "google": "Oswald:wght@500;600;700&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Libre+Franklin:wght@400;500;600"
+  },
+  "vars": {
+    "--bg": "#ebe6dc",
+    "--bg-glow": "none",
+    "--panel": "#ebe6dc",
+    "--panel-2": "#e0d9cc",
+    "--line": "#0a0a0a",
+    "--line-soft": "rgba(10, 10, 10, 0.22)",
+    "--text": "#0a0a0a",
+    "--muted": "#3a3a3a",
+    "--accent": "#0a0a0a",
+    "--accent-hot": "#0a0a0a",
+    "--accent-dim": "#ddd6c8",
+    "--gold": "#222222",
+    "--warn": "#555555",
+    "--bad": "#111111",
+    "--ok": "#222222",
+    "--radius": "0px",
+    "--font-display": "\"Oswald\", \"Arial Narrow\", Impact, sans-serif",
+    "--font-body": "\"Newsreader\", Georgia, serif",
+    "--font-ui": "\"Libre Franklin\", \"Segoe UI\", sans-serif",
+    "--font-nameplate": "\"Playfair Display\", Georgia, serif"
+  }
+}

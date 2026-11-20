@@ -9,12 +9,15 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
+import { spawnSync } from "node:child_process";
 import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  encodeFunctionData,
   http,
   parseEther,
+  parseAbi,
   zeroAddress,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
@@ -55,6 +58,43 @@ function anvilExe() {
     process.platform === "win32" ? "anvil.exe" : "anvil",
   );
   return existsSync(local) ? local : "anvil";
+}
+
+function forgeExe() {
+  const local = join(
+    FOUNDRY_BIN,
+    process.platform === "win32" ? "forge.exe" : "forge",
+  );
+  return existsSync(local) ? local : "forge";
+}
+
+const ERC20_ABI = parseAbi([
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address) view returns (uint256)",
+]);
+
+function deployMockErc20(rpc, pk) {
+  const sol = join(__dirname, "MockERC20.sol");
+  const r = spawnSync(
+    forgeExe(),
+    [
+      "create",
+      `${sol}:MockERC20`,
+      "--rpc-url",
+      rpc,
+      "--private-key",
+      pk,
+      "--broadcast",
+    ],
+    { encoding: "utf8", windowsHide: true },
+  );
+  const out = `${r.stdout || ""}\n${r.stderr || ""}`;
+  if (r.status !== 0) {
+    throw new Error(`forge create failed: ${out.slice(0, 500)}`);
+  }
+  const m = out.match(/Deployed to:\s*(0x[a-fA-F0-9]{40})/);
+  if (!m) throw new Error(`no deploy address in forge output: ${out.slice(0, 500)}`);
+  return m[1];
 }
 
 async function waitRpc(timeoutMs = 60000) {
@@ -227,10 +267,61 @@ async function main() {
     });
     const after = await publicClient.getBalance({ address: author.address });
     pass(
-      "Tip",
+      "Tip PLS",
       tipReceipt.status === "success" && after > before,
       `Δ ${after - before}`,
     );
+
+    // --- Tip ERC-20 (MockERC20 via forge) ---
+    try {
+      const pk =
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"; // anvil[0]
+      const token = deployMockErc20(RPC, pk);
+      // fund tipper with tokens from author (deployer = anvil[0] = author)
+      const fundHash = await wallet(author).sendTransaction({
+        account: author,
+        to: token,
+        data: encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [tipper.address, parseEther("100")],
+        }),
+        chain: anvilChain,
+      });
+      await publicClient.waitForTransactionReceipt({ hash: fundHash });
+      const balBefore = await publicClient.readContract({
+        address: token,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [author.address],
+      });
+      const ercHash = await wallet(tipper).sendTransaction({
+        account: tipper,
+        to: token,
+        data: encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "transfer",
+          args: [author.address, parseEther("7")],
+        }),
+        chain: anvilChain,
+      });
+      const ercReceipt = await publicClient.waitForTransactionReceipt({
+        hash: ercHash,
+      });
+      const balAfter = await publicClient.readContract({
+        address: token,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [author.address],
+      });
+      pass(
+        "Tip ERC-20",
+        ercReceipt.status === "success" && balAfter > balBefore,
+        `token ${token}`,
+      );
+    } catch (e) {
+      pass("Tip ERC-20", false, e instanceof Error ? e.message : String(e));
+    }
 
     const failed = results.filter((r) => !r.ok);
     writeFileSync(

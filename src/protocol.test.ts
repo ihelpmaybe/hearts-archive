@@ -12,6 +12,7 @@ import {
   parseTags,
   shouldSkipGzip,
   splitBytes,
+  tryParseFrontBid,
   tryParseLike,
   utf8ToHex,
   CHUNK_BYTES,
@@ -138,5 +139,20 @@ describe("likes", () => {
       }),
     );
     expect(tryParseLike(data)).toBeNull();
+  });
+});
+
+describe("front bids", () => {
+  it("parses front-page calldata", () => {
+    const manifest =
+      "0x99dc0376f563ea78ecd5a6faff167d732cc5ae528b47e4121f074128a97e537d";
+    const data = utf8ToHex(
+      JSON.stringify({
+        kind: "pulse-archive-front",
+        manifest,
+        app: "pulse-archive",
+      }),
+    );
+    expect(tryParseFrontBid(data)?.manifest).toBe(manifest.toLowerCase());
   });
 });

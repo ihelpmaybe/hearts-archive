@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   useAccount,
   useBalance,
@@ -26,13 +33,24 @@ import {
 import {
   countLikesByManifest,
   dedupeBySha256,
+  dedupeFrontBids,
   dedupeLikes,
   hasLiked,
   listArchiveFromAuthor,
   listSinkBundle,
   type ArchiveEntry,
+  type FrontBidEntry,
   type LikeEntry,
 } from "./archive";
+import { formatPls } from "./frontPage";
+import {
+  formatEditionLabel,
+  layoutEdition,
+  listEditionDays,
+  utcTodayKey,
+} from "./editions";
+import { plateFor } from "./plates";
+import { softMuteHit } from "./softMute";
 import { getCachedDoc, listCachedSummaries, putCachedDoc } from "./cache";
 import {
   findCatalogBySha256,
@@ -74,6 +92,7 @@ import {
   sharePath,
   shareUrl,
   MAX_PUBLISH_BYTES,
+  sendFrontBid,
   sendLike,
   type ChunkProgress,
   type DocType,
@@ -86,6 +105,7 @@ import {
   downloadBackupJson,
 } from "./shelfBackup";
 import { collapseSeriesCards } from "./series";
+import { offlineOpenHint } from "./offlineOpen";
 
 type LoadedDoc = {
   mimeType: string;
@@ -130,7 +150,7 @@ function Preview({ doc }: { doc: LoadedDoc }) {
     mimeType.includes("json") ||
     mimeType.includes("xml")
   ) {
-    return <TextPreview url={objectUrl} />;
+    return <TextPreview url={objectUrl} title={doc.title} />;
   }
   return (
     <p className="meta">
@@ -140,7 +160,30 @@ function Preview({ doc }: { doc: LoadedDoc }) {
   );
 }
 
-function TextPreview({ url }: { url: string }) {
+function SoftHeld({
+  hit,
+  children,
+  label = "Held from the face — open anyway",
+}: {
+  hit: boolean;
+  children: ReactNode;
+  label?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!hit || open) return <>{children}</>;
+  return (
+    <div className="soft-held">
+      <p className="soft-held-note">
+        Soft mute — wording looked too graphic for the paper face.
+      </p>
+      <button type="button" className="ghost" onClick={() => setOpen(true)}>
+        {label}
+      </button>
+    </div>
+  );
+}
+
+function TextPreview({ url, title }: { url: string; title?: string }) {
   const [text, setText] = useState("Loading…");
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +199,12 @@ function TextPreview({ url }: { url: string }) {
       cancelled = true;
     };
   }, [url]);
-  return <pre>{text}</pre>;
+  const hit = softMuteHit(title, text === "Loading…" ? "" : text);
+  return (
+    <SoftHeld hit={hit} label="Read anyway">
+      <pre>{text}</pre>
+    </SoftHeld>
+  );
 }
 
 export function App() {
@@ -212,13 +260,18 @@ export function App() {
   const [tipError, setTipError] = useState<string | null>(null);
   const [tipOk, setTipOk] = useState<string | null>(null);
   const [citeMsg, setCiteMsg] = useState<string | null>(null);
-  const [loadSource, setLoadSource] = useState<string | null>(null);
+  const [, setLoadSource] = useState<string | null>(null);
   const [likes, setLikes] = useState<LikeEntry[]>([]);
+  const [fronts, setFronts] = useState<FrontBidEntry[]>([]);
   const [liking, setLiking] = useState(false);
   const [likeError, setLikeError] = useState<string | null>(null);
+  const [frontAmount, setFrontAmount] = useState("10");
+  const [fronting, setFronting] = useState(false);
+  const [frontError, setFrontError] = useState<string | null>(null);
+  const [frontOk, setFrontOk] = useState<string | null>(null);
   const [labNote, setLabNote] = useState<string | undefined>();
   const [labOn, setLabOn] = useState(() => isLabMode());
-  const [expandSeries, setExpandSeries] = useState<Set<string>>(() => new Set());
+  const [expandSeries] = useState<Set<string>>(() => new Set());
   const [recentTips, setRecentTips] = useState<`0x${string}`[]>(() =>
     loadRecentTipTokens(),
   );
@@ -226,6 +279,7 @@ export function App() {
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [likeOk, setLikeOk] = useState<string | null>(null);
   const [tab, setTab] = useState<"library" | "post">("library");
+  const [editionDay, setEditionDay] = useState<"live" | string>("live");
   const [incomplete, setIncomplete] = useState<IncompletePublish | null>(() =>
     loadIncomplete(),
   );
@@ -422,9 +476,12 @@ export function App() {
 
         if (!publicClient) {
           setReadError(
-            typeof navigator !== "undefined" && navigator.onLine === false
-              ? "Offline and no local copy — open this link once online to cache it."
-              : "RPC not ready — Sync once while online, then re-open.",
+            offlineOpenHint({
+              hasCache: false,
+              online:
+                typeof navigator === "undefined" ? true : navigator.onLine,
+              rpcReady: false,
+            }) || "RPC not ready — Sync once while online, then re-open.",
           );
           return;
         }
@@ -479,14 +536,15 @@ export function App() {
           source: "Fetched from Pulse · saved locally",
         });
       } catch (e) {
-        const offline =
-          typeof navigator !== "undefined" && navigator.onLine === false;
+        const online =
+          typeof navigator === "undefined" ? true : navigator.onLine;
+        const offlineMsg = offlineOpenHint({
+          hasCache: false,
+          online,
+          rpcReady: true,
+        });
         const msg = e instanceof Error ? e.message : String(e);
-        setReadError(
-          offline
-            ? "Offline and no local copy for this hash — open it once online."
-            : msg,
-        );
+        setReadError(!online && offlineMsg ? offlineMsg : msg);
         setDoc(null);
         openHashRef.current = null;
       } finally {
@@ -561,6 +619,7 @@ export function App() {
           knownHashes,
         });
         setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+        setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
         void upsertCachedLikes(bundle.likes);
       } else {
         const bundle = await listSinkBundle({
@@ -571,6 +630,7 @@ export function App() {
         await upsertCatalog(bundle.entries);
         setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
         setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+        setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
         void upsertCachedLikes(bundle.likes);
       }
       try {
@@ -638,6 +698,7 @@ export function App() {
           seeded = true;
           setLabNote(seed.meta.note);
           setLikes((prev) => dedupeLikes([...seed.likes, ...prev]));
+          setFronts((prev) => dedupeFrontBids([...seed.fronts, ...prev]));
           setEntries((prev) =>
             dedupeBySha256(mergeShelfAndRemote(seed.entries, prev)),
           );
@@ -757,21 +818,18 @@ export function App() {
     [filtered, expandSeries],
   );
 
+  const press = useMemo(
+    () => layoutEdition(libraryCards, fronts, editionDay),
+    [libraryCards, fronts, editionDay],
+  );
+
+  const frontWinner = press.front;
+  const editionDays = useMemo(() => listEditionDays(fronts), [fronts]);
+
   const shortFunds =
     !!plsBalance &&
     costWei != null &&
     plsBalance.value < (costWei * 12n) / 10n;
-
-  const tagSuggestions = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const e of entries) {
-      for (const t of e.tags) counts.set(t, (counts.get(t) || 0) + 1);
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
-      .map(([t]) => t);
-  }, [entries]);
 
   const hasActiveSearch =
     !!filter.trim() ||
@@ -798,7 +856,7 @@ export function App() {
     setLastManifest(null);
     try {
       if (chainId !== pulsechain.id) {
-        throw new Error("Switch wallet to PulseChain (369) first");
+        throw new Error("Wrong network — hit Switch to Pulse in the top bar.");
       }
       if (
         !resume &&
@@ -807,7 +865,7 @@ export function App() {
         plsBalance.value < (costWei * 12n) / 10n
       ) {
         throw new Error(
-          "Not enough PLS for the free gas estimate (+20% buffer). Add PLS or shorten the post.",
+          "Not enough PLS for gas — add PLS or shorten the post.",
         );
       }
       if (!resume && prepared.sha256) {
@@ -948,7 +1006,7 @@ export function App() {
   async function tipAuthor() {
     if (!doc?.from || !walletClient || !publicClient || !address) return;
     if (wrongChain) {
-      setTipError("Switch to Pulse");
+      setTipError("Wrong network — hit Switch to Pulse.");
       return;
     }
     setTipping(true);
@@ -1036,6 +1094,7 @@ export function App() {
         stopAfterKnown: 12,
       });
       setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+      setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
       void upsertCachedLikes(bundle.likes);
     } catch (e) {
       const offline =
@@ -1075,10 +1134,64 @@ export function App() {
     }
   }
 
+  async function buyFrontPage() {
+    if (!doc || !walletClient || !publicClient || !address) return;
+    if (wrongChain) {
+      setFrontError("Wrong network — hit Switch to Pulse.");
+      return;
+    }
+    let valueWei: bigint;
+    try {
+      valueWei = parseEther(frontAmount || "0");
+    } catch {
+      setFrontError("Enter a PLS amount");
+      return;
+    }
+    if (valueWei <= 0n) {
+      setFrontError("Enter a PLS amount");
+      return;
+    }
+    const need = frontWinner ? frontWinner.valueWei + 1n : 1n;
+    if (valueWei < need) {
+      setFrontError(
+        frontWinner
+          ? `Need more than ${formatPls(frontWinner.valueWei)} PLS to take the front`
+          : "Enter a PLS amount",
+      );
+      return;
+    }
+    setFronting(true);
+    setFrontError(null);
+    setFrontOk(null);
+    try {
+      const txHash = await sendFrontBid({
+        walletClient,
+        publicClient,
+        account: address,
+        manifestHash: doc.manifestHash,
+        valueWei,
+      });
+      const row: FrontBidEntry = {
+        hash: txHash,
+        from: address.toLowerCase(),
+        timeStamp: Math.floor(Date.now() / 1000),
+        manifest: doc.manifestHash.toLowerCase() as Hash,
+        valueWei,
+      };
+      setFronts((prev) => dedupeFrontBids([row, ...prev]));
+      setFrontOk(`Front page yours — ${formatPls(valueWei)} PLS`);
+    } catch (e) {
+      setFrontError(e instanceof Error ? e.message : String(e));
+      setFrontOk(null);
+    } finally {
+      setFronting(false);
+    }
+  }
+
   async function likeDoc() {
     if (!doc || !walletClient || !publicClient || !address) return;
     if (wrongChain) {
-      setLikeError("Switch to Pulse");
+      setLikeError("Wrong network — hit Switch to Pulse.");
       return;
     }
     if (hasLiked(likes, doc.manifestHash, address)) {
@@ -1163,7 +1276,7 @@ export function App() {
       }
       if (e.key !== "j" && e.key !== "k") return;
       e.preventDefault();
-      const hashes = libraryCards.map((c) => c.entry.hash.toLowerCase());
+      const hashes = press.flat.map((c) => c.entry.hash.toLowerCase());
       if (!hashes.length) return;
       const cur = doc?.manifestHash.toLowerCase() || "";
       let idx = hashes.indexOf(cur);
@@ -1172,232 +1285,267 @@ export function App() {
         e.key === "j"
           ? Math.min(hashes.length - 1, idx + 1)
           : Math.max(0, idx <= 0 ? 0 : idx - 1);
-      const h = libraryCards[next]?.entry.hash;
+      const h = press.flat[next]?.entry.hash;
       if (h) void load(h);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, libraryCards, doc, load]);
+  }, [tab, press.flat, doc, load]);
+
+  const editionDate = useMemo(() => {
+    const key = editionDay === "live" ? utcTodayKey() : editionDay;
+    const [y, m, d] = key.split("-").map(Number);
+    const months = [
+      "JANUARY",
+      "FEBRUARY",
+      "MARCH",
+      "APRIL",
+      "MAY",
+      "JUNE",
+      "JULY",
+      "AUGUST",
+      "SEPTEMBER",
+      "OCTOBER",
+      "NOVEMBER",
+      "DECEMBER",
+    ];
+    return `${months[(m || 1) - 1]} ${d}, ${y}`;
+  }, [editionDay]);
+
+  const colLead = press.secondary[0] || null;
+  const colMid = press.secondary[1] || press.briefs[0] || null;
+  const colRight = press.briefs[press.secondary.length >= 2 ? 0 : 1] || null;
+  const colARest = (
+    press.secondary[0]
+      ? press.briefs.slice(0, 2)
+      : press.briefs.slice(0, 3)
+  ).filter((c) => c.entry.hash !== colMid?.entry.hash && c.entry.hash !== colRight?.entry.hash);
+  const colCRest = press.briefs
+    .slice(press.secondary.length >= 2 ? 1 : 2)
+    .filter(
+      (c) =>
+        c.entry.hash !== colMid?.entry.hash &&
+        c.entry.hash !== colRight?.entry.hash &&
+        !colARest.some((a) => a.entry.hash === c.entry.hash),
+    )
+    .slice(0, 2);
 
   return (
     <div className="app">
-      <header className="top">
-        <div className="brand">
-          <h1>Heart’s Archive</h1>
-        </div>
-        <div className="top-right">
-          <ThemePicker />
-          <WalletBar
-            onUseAsAuthor={(a) => {
-              setAuthorInput(a);
-              setTab("library");
-            }}
-          />
-        </div>
-      </header>
+      <div className="rail">
+        {tab === "library" ? (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setTab("post")}
+          >
+            Write
+            {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setTab("library")}
+          >
+            Front page
+          </button>
+        )}
+        <button
+          type="button"
+          className="ghost"
+          disabled={browsing}
+          onClick={() => void refreshLibrary()}
+        >
+          {browsing ? "…" : "Sync"}
+        </button>
+        <ThemePicker />
+        <WalletBar
+          onUseAsAuthor={(a) => {
+            setAuthorInput(a);
+            setTab("library");
+          }}
+        />
+      </div>
 
-      <nav className="tabs" aria-label="Archive">
-        <button
-          type="button"
-          className={tab === "library" ? "tab active" : "tab"}
-          onClick={() => setTab("library")}
-        >
-          Library
-          <span className="tab-count">{filtered.length}</span>
-          {doc ? <span className="tab-dot" aria-hidden /> : null}
-        </button>
-        <button
-          type="button"
-          className={tab === "post" ? "tab active" : "tab"}
-          onClick={() => setTab("post")}
-        >
-          Post
-          {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
-        </button>
-      </nav>
+      <header className="masthead">
+        <div className="ornament-bar" aria-hidden>
+          <span>Archive edition</span>
+          <span className="ornament">❖ ❖ ❖</span>
+          <span>Archive edition</span>
+        </div>
+        <h1 className="nameplate">Heart’s Archive</h1>
+        <hr className="double-rule" />
+        <div className="edition-line">
+          <span>Est · Pulse</span>
+          <span>On-chain press</span>
+          <span>{editionDate}</span>
+        </div>
+        <hr className="double-rule" />
+        <p className="paper-slogan">
+          {frontWinner
+            ? `A1 · ${formatPls(frontWinner.valueWei)} PLS`
+            : "A celebration of creative expression"}
+        </p>
+        {(editionDays.length > 0 || editionDay !== "live") && (
+          <div className="edition-picker">
+            <label>
+              Edition
+              <select
+                value={editionDay}
+                onChange={(e) =>
+                  setEditionDay(
+                    e.target.value === "live" ? "live" : e.target.value,
+                  )
+                }
+                aria-label="Newspaper edition day"
+              >
+                <option value="live">Live</option>
+                {editionDays.map((d) => (
+                  <option key={d} value={d}>
+                    {formatEditionLabel(d)}
+                    {d === utcTodayKey() ? " (today)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {editionDay !== "live" && (
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setEditionDay("live")}
+              >
+                Back to live
+              </button>
+            )}
+          </div>
+        )}
+      </header>
 
       {tab === "library" && (
         <section className="panel page library-page">
-          <div className="toolbar">
-            <input
-              className="grow"
-              type="text"
-              placeholder="Search · tag: type: from:"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              spellCheck={false}
-            />
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              aria-label="Type"
-            >
-              <option value="text">text</option>
-              <option value="all">all (feed)</option>
-              <option value="json">json</option>
-              <option value="html">html</option>
-              <option value="other">other</option>
-            </select>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SearchSort)}
-              aria-label="Sort"
-            >
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="title">Title</option>
-              <option value="author">Author</option>
-            </select>
-            <select
-              value={datePreset}
-              onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-              aria-label="Date"
-            >
-              <option value="all">Any time</option>
-              <option value="7d">7d</option>
-              <option value="30d">30d</option>
-            </select>
-            <select
-              value={scope}
-              onChange={(e) => setScope(e.target.value as SearchScope)}
-              aria-label="Scope"
-            >
-              <option value="all">All</option>
-              <option value="local">Local</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Author 0x…"
-              value={authorInput}
-              onChange={(e) => setAuthorInput(e.target.value.trim())}
-              spellCheck={false}
-              style={{ maxWidth: "11rem" }}
-            />
-            <button
-              type="button"
-              className="primary"
-              disabled={browsing}
-              onClick={() => void refreshLibrary()}
-              title="Pull new posts from …feed (uses RPC)"
-            >
-              {browsing ? "…" : "Sync"}
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={likesRefreshing || browsing}
-              onClick={() => void refreshLikesOnly()}
-              title="Refresh likes only (lighter than full Sync)"
-            >
-              {likesRefreshing ? "…" : "♥"}
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => void exportBackup()}
-              title="Export shelf + catalog JSON"
-            >
-              Export
-            </button>
-            <label className="ghost file-btn" title="Import backup JSON">
-              Import
+          <details className="filters-drawer">
+            <summary>Search &amp; tools</summary>
+            <div className="filters-body">
               <input
-                type="file"
-                accept="application/json,.json"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) void importBackupFile(f);
-                }}
+                className="grow"
+                type="text"
+                placeholder="Search…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                spellCheck={false}
+                style={{ maxWidth: "100%", flex: "1 1 14rem" }}
               />
-            </label>
-            {hasActiveSearch && (
-              <button type="button" className="ghost" onClick={clearSearch}>
-                Clear
-              </button>
-            )}
-            <span className="count-pill" title="Showing local catalog">
-              {libraryCards.length}/{entries.length} local
-            </span>
-          </div>
-          {backupMsg && <p className="meta">{backupMsg}</p>}
-          <div className="toolbar tight checks">
-            {tagSuggestions.slice(0, 8).map((t) => (
-              <button
-                key={t}
-                type="button"
-                className="ghost tag-chip"
-                onClick={() =>
-                  setFilter((prev) => {
-                    const token = `tag:${t}`;
-                    return prev.includes(token)
-                      ? prev
-                      : `${prev} ${token}`.trim();
-                  })
-                }
-              >
-                #{t}
-              </button>
-            ))}
-          </div>
-          {browseError && <p className="status bad">{browseError}</p>}
-          {labNote && labOn && (
-            <p className="meta lab-banner">{labNote}</p>
-          )}
-          <div className="lab-toggle-row">
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={labOn}
-                onChange={(e) => {
-                  const on = e.target.checked;
-                  setLabMode(on);
-                  setLabOn(on);
-                  if (!on) {
-                    setLabNote(undefined);
-                  } else {
-                    void loadLabSeed().then((seed) => {
-                      if (!seed) return;
-                      setLabNote(seed.meta.note);
-                      setLikes((prev) =>
-                        dedupeLikes([...seed.likes, ...prev]),
-                      );
-                      setEntries((prev) =>
-                        dedupeBySha256(
-                          mergeShelfAndRemote(seed.entries, prev),
-                        ),
-                      );
-                    });
-                  }
-                }}
-              />
-              Lab seed
-            </label>
-          </div>
-
-          <div className="library-split">
-            <div className="library-list">
-              {recentLocal.length > 0 && (
-                <div className="recent">
-                  <div className="tag-row">
-                    {recentLocal.map((r) => (
-                      <button
-                        key={r.hash}
-                        type="button"
-                        className="ghost tag-chip"
-                        disabled={reading}
-                        onClick={() => void load(r.hash)}
-                      >
-                        {r.title.slice(0, 24)}
-                        {r.title.length > 24 ? "…" : ""}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              {hasActiveSearch && (
+                <button type="button" className="ghost" onClick={clearSearch}>
+                  Clear
+                </button>
               )}
-              <details className="hash-open">
-                <summary>Paste a share link / hash</summary>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                aria-label="Type"
+              >
+                <option value="text">text</option>
+                <option value="all">all (feed)</option>
+                <option value="json">json</option>
+                <option value="html">html</option>
+                <option value="other">other</option>
+              </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SearchSort)}
+                aria-label="Sort"
+              >
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+                <option value="title">Title</option>
+                <option value="author">Author</option>
+              </select>
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+                aria-label="Date"
+              >
+                <option value="all">Any time</option>
+                <option value="7d">7d</option>
+                <option value="30d">30d</option>
+              </select>
+              <select
+                value={scope}
+                onChange={(e) => setScope(e.target.value as SearchScope)}
+                aria-label="Scope"
+              >
+                <option value="all">All</option>
+                <option value="local">Local</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Author 0x…"
+                value={authorInput}
+                onChange={(e) => setAuthorInput(e.target.value.trim())}
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                className="ghost"
+                disabled={likesRefreshing || browsing}
+                onClick={() => void refreshLikesOnly()}
+              >
+                {likesRefreshing ? "…" : "Likes"}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => void exportBackup()}
+              >
+                Export
+              </button>
+              <label className="ghost file-btn" title="Import backup JSON">
+                Import
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  hidden
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) void importBackupFile(f);
+                  }}
+                />
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={labOn}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setLabMode(on);
+                    setLabOn(on);
+                    if (!on) setLabNote(undefined);
+                    else {
+                      void loadLabSeed().then((seed) => {
+                        if (!seed) return;
+                        setLabNote(seed.meta.note);
+                        setLikes((prev) =>
+                          dedupeLikes([...seed.likes, ...prev]),
+                        );
+                        setFronts((prev) =>
+                          dedupeFrontBids([...seed.fronts, ...prev]),
+                        );
+                        setEntries((prev) =>
+                          dedupeBySha256(
+                            mergeShelfAndRemote(seed.entries, prev),
+                          ),
+                        );
+                      });
+                    }
+                  }}
+                />
+                Lab seed
+              </label>
+              <details className="hash-open" style={{ width: "100%" }}>
+                <summary>Open by link</summary>
                 <div className="row">
                   <input
                     type="text"
@@ -1419,151 +1567,380 @@ export function App() {
                   </button>
                 </div>
               </details>
-              {browsing && filtered.length === 0 && (
-                <div className="skeleton-grid" aria-hidden>
-                  <div className="skeleton" />
-                  <div className="skeleton" />
-                  <div className="skeleton" />
-                  <div className="skeleton" />
+            </div>
+          </details>
+          {backupMsg && <p className="meta">{backupMsg}</p>}
+          {browseError && <p className="status bad">{browseError}</p>}
+          {labNote && labOn && (
+            <p className="meta lab-banner">{labNote}</p>
+          )}
+
+          {!doc && !reading && (
+            <>
+              {!browsing && filtered.length === 0 ? (
+                <div className="empty first-path">
+                  <p className="empty-title">No stories in this edition</p>
+                  <ol className="empty-steps">
+                    <li>Connect on Pulse</li>
+                    <li>Write · Publish</li>
+                    <li>Sync the feed</li>
+                    <li>Buy A1 with PLS to own the lead</li>
+                  </ol>
                 </div>
-              )}
-              <div className="card-grid">
-                {libraryCards.map(({ entry: e, version, olderCount }) => (
-                  <button
-                    key={e.hash}
-                    type="button"
-                    className={
-                      doc?.manifestHash === e.hash
-                        ? "doc-card active"
-                        : "doc-card"
-                    }
-                    onClick={() => void load(e.hash)}
-                  >
-                    <strong>
-                      {e.title}
-                      {version ? (
-                        <span className="series-badge"> v{version}</span>
-                      ) : null}
-                    </strong>
-                    {formatPostedAt(e.timeStamp) && (
-                      <span className="when">
-                        {formatPostedAt(e.timeStamp)}
-                      </span>
-                    )}
-                    {e.summary && (
-                      <span className="card-sum">{e.summary}</span>
-                    )}
-                    <span>
-                      {e.type || e.mimeType} · {e.chunkCount} chunk
-                      {e.chunkCount === 1 ? "" : "s"}
-                      {e.encoding === "gzip" ? " · gz" : ""}
-                      {` · ♥ ${likeCounts.get(e.hash.toLowerCase()) || 0}`}
-                    </span>
-                    <span>
-                      {shortAddr(e.from)}{" "}
-                      <button
-                        type="button"
-                        className="linkish"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          setAuthorInput(e.from);
-                        }}
+              ) : (
+                <div className="broadsheet">
+                  {press.lead && (
+                    <>
+                      <SoftHeld
+                        hit={softMuteHit(
+                          press.lead.entry.title,
+                          press.lead.entry.summary,
+                        )}
                       >
-                        filter
-                      </button>
-                      {olderCount > 0 && (
                         <button
                           type="button"
-                          className="linkish"
-                          onClick={(ev) => {
-                            ev.stopPropagation();
-                            const tip = e.hash.toLowerCase();
-                            setExpandSeries((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(tip)) next.delete(tip);
-                              else next.add(tip);
-                              return next;
-                            });
-                          }}
+                          className="a1-banner"
+                          onClick={() => void load(press.lead!.entry.hash)}
                         >
-                          {expandSeries.has(e.hash.toLowerCase())
-                            ? "hide older"
-                            : `+${olderCount} older`}
+                          <span className="a1-hed">
+                            {press.lead.entry.title}
+                          </span>
+                          {press.lead.entry.summary && (
+                            <span className="a1-dek">
+                              {press.lead.entry.summary}
+                            </span>
+                          )}
                         </button>
+                      </SoftHeld>
+                      <button
+                        type="button"
+                        className="hero-well"
+                        onClick={() => void load(press.lead!.entry.hash)}
+                      >
+                        <img
+                          className="hero-plate"
+                          src={plateFor(press.lead.entry.hash).src}
+                          alt=""
+                          loading="lazy"
+                        />
+                        <span className="hero-caption">
+                          {plateFor(press.lead.entry.hash).credit}
+                          {" · "}
+                          By {shortAddr(press.lead.entry.from)}
+                          {formatPostedAt(press.lead.entry.timeStamp)
+                            ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
+                            : ""}
+                          {frontWinner &&
+                          frontWinner.manifest.toLowerCase() ===
+                            press.lead.entry.hash.toLowerCase()
+                            ? ` · A1 ${formatPls(frontWinner.valueWei)} PLS`
+                            : ""}
+                          {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
+                          {" · Continued inside →"}
+                        </span>
+                      </button>
+                    </>
+                  )}
+                  <hr className="single-rule" />
+                  <div className="a1-grid">
+                    <div className="a1-col">
+                      {colLead ? (
+                        <SoftHeld
+                          hit={softMuteHit(
+                            colLead.entry.title,
+                            colLead.entry.summary,
+                          )}
+                        >
+                          <button
+                            type="button"
+                            className="story-item lead-col"
+                            onClick={() => void load(colLead.entry.hash)}
+                          >
+                            <span className="a1-col-hed">
+                              {colLead.entry.title}
+                            </span>
+                            {colLead.entry.summary && (
+                              <span className="story-dek">
+                                {colLead.entry.summary}
+                              </span>
+                            )}
+                            <span className="story-meta">
+                              {shortAddr(colLead.entry.from)} ·{" "}
+                              {likeCounts.get(
+                                colLead.entry.hash.toLowerCase(),
+                              ) || 0}{" "}
+                              likes
+                            </span>
+                            <img
+                              className="cut-rect"
+                              src={plateFor(colLead.entry.hash, 1).src}
+                              alt=""
+                              loading="lazy"
+                            />
+                          </button>
+                        </SoftHeld>
+                      ) : (
+                        <p className="a1-col-hed">Inside</p>
                       )}
-                    </span>
-                    {e.tags.length > 0 && (
-                      <span className="tags">{e.tags.join(" · ")}</span>
-                    )}
-                  </button>
-                ))}
-                {!browsing && filtered.length === 0 && (
-                  <div className="empty first-path">
-                    <p className="empty-title">Nothing here yet</p>
-                    <ol className="empty-steps">
-                      <li>Connect wallet (Pulse)</li>
-                      <li>Open Post → write text</li>
-                      <li>Publish</li>
-                      <li>Hit Sync to pull the feed</li>
-                    </ol>
-                    <p className="meta">
-                      Or Sync now if others already posted to …feed.
-                    </p>
+                      <div className="story-stack">
+                        {colARest.map(({ entry: e }) => (
+                          <SoftHeld
+                            key={e.hash}
+                            hit={softMuteHit(e.title, e.summary)}
+                          >
+                            <button
+                              type="button"
+                              className="story-item"
+                              onClick={() => void load(e.hash)}
+                            >
+                              <span className="story-hed">{e.title}</span>
+                              {e.summary && (
+                                <span className="story-dek">{e.summary}</span>
+                              )}
+                              <span className="story-meta">
+                                {shortAddr(e.from)}
+                              </span>
+                            </button>
+                          </SoftHeld>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="a1-col a1-col-mid">
+                      {colMid ? (
+                        <SoftHeld
+                          hit={softMuteHit(
+                            colMid.entry.title,
+                            colMid.entry.summary,
+                          )}
+                        >
+                          <button
+                            type="button"
+                            className="story-item mid-wrap"
+                            onClick={() => void load(colMid.entry.hash)}
+                          >
+                            {colMid.entry.summary && (
+                              <span className="story-dek mid-dek-top">
+                                {colMid.entry.summary.slice(0, 120)}
+                                {colMid.entry.summary.length > 120 ? "…" : ""}
+                              </span>
+                            )}
+                            <span className="story-hed mid-hed">
+                              {colMid.entry.title}
+                            </span>
+                            <span className="story-meta">
+                              {shortAddr(colMid.entry.from)}
+                            </span>
+                          </button>
+                        </SoftHeld>
+                      ) : (
+                        <p className="story-meta">More stories after Sync.</p>
+                      )}
+                    </div>
+                    <div className="a1-col">
+                      {colRight ? (
+                        <SoftHeld
+                          hit={softMuteHit(
+                            colRight.entry.title,
+                            colRight.entry.summary,
+                          )}
+                        >
+                          <button
+                            type="button"
+                            className="story-item"
+                            onClick={() => void load(colRight.entry.hash)}
+                          >
+                            <span className="story-hed right-hed">
+                              {colRight.entry.title}
+                            </span>
+                            <img
+                              className="cut-square"
+                              src={plateFor(colRight.entry.hash, 2).src}
+                              alt=""
+                              loading="lazy"
+                            />
+                            {colRight.entry.summary && (
+                              <span className="story-dek">
+                                {colRight.entry.summary}
+                              </span>
+                            )}
+                            <span className="story-meta">
+                              {shortAddr(colRight.entry.from)}
+                            </span>
+                          </button>
+                        </SoftHeld>
+                      ) : null}
+                      <div className="story-stack">
+                        {colCRest.map(({ entry: e }) => (
+                          <button
+                            key={e.hash}
+                            type="button"
+                            className="story-item"
+                            onClick={() => void load(e.hash)}
+                          >
+                            <span className="story-hed">{e.title}</span>
+                            <span className="story-meta">
+                              {shortAddr(e.from)}
+                            </span>
+                          </button>
+                        ))}
+                        {!colMid && !colRight && !colLead && (
+                          <p className="story-meta">More stories after Sync.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
+          )}
 
-            <div className="library-reader">
+          {(doc || reading || readError) && (
+            <div className="interior">
+              <button
+                type="button"
+                className="interior-back"
+                onClick={() => {
+                  setDoc(null);
+                  openHashRef.current = null;
+                  setReadError(null);
+                  if (window.location.hash.startsWith("#/doc/")) {
+                    window.history.replaceState(null, "", "#/");
+                  }
+                }}
+              >
+                ← Front page
+              </button>
               {readError && (
                 <div className="status-block bad">
                   <p className="status bad">{readError}</p>
-                  <p className="meta">
-                    If you’ve opened this before, try Sync — or pick another
-                    card from local.
-                  </p>
-                </div>
-              )}
-              {!doc && !reading && !readError && (
-                <div className="reader-empty">
-                  <p>Pick a card on the left to read.</p>
                 </div>
               )}
               {reading && !doc && (
-                <div className="reader-empty">
-                  <p>Loading from Pulse…</p>
-                </div>
+                <p className="meta">Loading from Pulse…</p>
               )}
               {doc && (
-                <>
-                  <div className="reader-head">
-                    <h3 className="doc-title">
-                      {doc.title || "(untitled)"}
-                    </h3>
-                    <div className="reader-actions">
+                <article className="article">
+                  <h2 className="doc-title">
+                    {doc.title || "(untitled)"}
+                  </h2>
+                  <p className="article-byline">
+                    {doc.from ? shortAddr(doc.from) : "unknown"}
+                    {formatPostedAt(doc.postedAt)
+                      ? ` · ${formatPostedAt(doc.postedAt)}`
+                      : ""}
+                    {` · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0} likes`}
+                  </p>
+                  <div className="reader-actions">
+                    <button
+                      type="button"
+                      className={
+                        address &&
+                        hasLiked(likes, doc.manifestHash, address)
+                          ? "primary"
+                          : "ghost"
+                      }
+                      disabled={
+                        liking ||
+                        !isConnected ||
+                        wrongChain ||
+                        !walletClient ||
+                        (!!address &&
+                          hasLiked(likes, doc.manifestHash, address))
+                      }
+                      onClick={() => void likeDoc()}
+                    >
+                      {liking
+                        ? "Confirming…"
+                        : `Like ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
+                    </button>
+                    {doc.from && isConnected && (
+                      <>
+                        <input
+                          type="text"
+                          value={tipAmount}
+                          onChange={(e) => setTipAmount(e.target.value)}
+                          aria-label="Tip amount"
+                          placeholder="Amt"
+                          style={{ maxWidth: "4.5rem" }}
+                        />
+                        <select
+                          value={tipTokenId}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v.startsWith("recent:")) {
+                              setTipTokenId(CUSTOM_TIP_ID);
+                              setTipCustom(v.slice("recent:".length));
+                              return;
+                            }
+                            setTipTokenId(v);
+                          }}
+                          aria-label="Tip token"
+                        >
+                          {TIP_PRESETS.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.symbol}
+                            </option>
+                          ))}
+                          {recentTips.map((a) => (
+                            <option key={a} value={`recent:${a}`}>
+                              Recent {shortAddr(a)}
+                            </option>
+                          ))}
+                          <option value={CUSTOM_TIP_ID}>Custom…</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={wrongChain || tipping || !walletClient}
+                          onClick={() => void tipAuthor()}
+                        >
+                          {tipping ? "…" : "Tip"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {likeError && <p className="status bad">{likeError}</p>}
+                  {likeOk && <p className="status ok">{likeOk}</p>}
+                  {tipError && <p className="status bad">{tipError}</p>}
+                  {tipOk && <p className="status ok">{tipOk}</p>}
+                  {isConnected && (
+                    <div className="front-bid-bar">
+                      <span className="front-bid-label">
+                        {frontWinner &&
+                        frontWinner.manifest.toLowerCase() ===
+                          doc.manifestHash.toLowerCase()
+                          ? `Holding A1 · ${formatPls(frontWinner.valueWei)} PLS`
+                          : frontWinner
+                            ? `A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more to take it`
+                            : "A1 open — set the lead with PLS"}
+                      </span>
+                      <input
+                        type="text"
+                        value={frontAmount}
+                        onChange={(e) => setFrontAmount(e.target.value)}
+                        aria-label="Front page PLS bid"
+                        placeholder="PLS"
+                      />
                       <button
                         type="button"
-                        className={
-                          address &&
-                          hasLiked(likes, doc.manifestHash, address)
-                            ? "primary"
-                            : "ghost"
-                        }
+                        className="primary"
                         disabled={
-                          liking ||
-                          !isConnected ||
+                          fronting ||
                           wrongChain ||
                           !walletClient ||
-                          (!!address &&
-                            hasLiked(likes, doc.manifestHash, address))
+                          !publicClient
                         }
-                        onClick={() => void likeDoc()}
-                        title="Sign off on-chain (like)"
+                        onClick={() => void buyFrontPage()}
                       >
-                        {liking
-                          ? "Confirming…"
-                          : `Like ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
+                        {fronting ? "…" : "Buy A1"}
                       </button>
+                    </div>
+                  )}
+                  {frontError && <p className="status bad">{frontError}</p>}
+                  {frontOk && <p className="status ok">{frontOk}</p>}
+                  <details className="more reader-more">
+                    <summary>Cite &amp; tools</summary>
+                    <div className="row wrap">
                       <a
                         href={doc.objectUrl}
                         download={`pulse-doc-${doc.manifestHash.slice(2, 10)}`}
@@ -1599,149 +1976,26 @@ export function App() {
                         Tx
                       </a>
                     </div>
-                  </div>
-                  {doc.from && isConnected && (
-                    <div className="tip-bar">
-                      <input
-                        type="text"
-                        value={tipAmount}
-                        onChange={(e) => setTipAmount(e.target.value)}
-                        aria-label="Tip amount"
-                        placeholder="Amt"
-                      />
-                      <select
-                        value={tipTokenId}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v.startsWith("recent:")) {
-                            setTipTokenId(CUSTOM_TIP_ID);
-                            setTipCustom(v.slice("recent:".length));
-                            return;
-                          }
-                          setTipTokenId(v);
-                        }}
-                        aria-label="Tip token"
-                      >
-                        {TIP_PRESETS.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.symbol}
-                          </option>
-                        ))}
-                        {recentTips.map((a) => (
-                          <option key={a} value={`recent:${a}`}>
-                            Recent {shortAddr(a)}
-                          </option>
-                        ))}
-                        <option value={CUSTOM_TIP_ID}>Custom…</option>
-                      </select>
-                      <button
-                        type="button"
-                        className="primary"
-                        disabled={wrongChain || tipping || !walletClient}
-                        onClick={() => void tipAuthor()}
-                        title="Send tokens to author (not a like)"
-                      >
-                        {tipping ? "…" : "Tip"}
-                      </button>
-                      {tipTokenId === CUSTOM_TIP_ID && (
-                        <input
-                          type="text"
-                          className="tip-custom"
-                          placeholder="Token 0x…"
-                          value={tipCustom}
-                          onChange={(e) =>
-                            setTipCustom(e.target.value.trim())
-                          }
-                          spellCheck={false}
-                        />
-                      )}
-                    </div>
-                  )}
-                  {likeError && <p className="status bad">{likeError}</p>}
-                  {likeOk && <p className="status ok">{likeOk}</p>}
-                  {tipError && <p className="status bad">{tipError}</p>}
-                  {tipOk && <p className="status ok">{tipOk}</p>}
-                  <p className="meta reader-meta">
-                    {doc.from ? shortAddr(doc.from) : "unknown"}
-                    {formatPostedAt(doc.postedAt)
-                      ? ` · ${formatPostedAt(doc.postedAt)}`
-                      : ""}
-                    {` · ♥ ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
-                    {loadSource === "Local copy" ? (
-                      <span className="quiet"> · local</span>
-                    ) : loadSource ? (
-                      <span className="quiet"> · {loadSource}</span>
-                    ) : null}
-                  </p>
-                  {(doc.replaces ||
-                    entries.some(
-                      (e) =>
-                        e.replaces?.toLowerCase() ===
-                        doc.manifestHash.toLowerCase(),
-                    )) && (
-                    <div className="series-nav">
-                      {doc.replaces &&
-                        /^0x[a-fA-F0-9]{64}$/.test(doc.replaces) && (
-                        <button
-                          type="button"
-                          className="ghost"
-                          onClick={() =>
-                            void load(doc.replaces!.toLowerCase() as Hash)
-                          }
-                        >
-                          ← Earlier version
-                        </button>
-                      )}
-                      {entries
-                        .filter(
-                          (e) =>
-                            e.replaces?.toLowerCase() ===
-                            doc.manifestHash.toLowerCase(),
-                        )
-                        .slice(0, 1)
-                        .map((e) => (
-                          <button
-                            key={e.hash}
-                            type="button"
-                            className="ghost"
-                            onClick={() => void load(e.hash)}
-                          >
-                            Newer version →
-                          </button>
-                        ))}
-                    </div>
-                  )}
-                  {(doc.summary ||
-                    doc.note ||
-                    (doc.tags && doc.tags.length > 0)) && (
-                    <details className="more reader-more">
-                      <summary>Details</summary>
-                      {doc.summary && <p className="note">{doc.summary}</p>}
-                      {doc.note && <p className="note">{doc.note}</p>}
-                      {doc.tags && doc.tags.length > 0 && (
-                        <p className="tags">{doc.tags.join(" · ")}</p>
-                      )}
-                      {(doc.size > 0 || doc.encoding) && (
-                        <p className="meta">
-                          {(doc.size / 1024).toFixed(1)} KB
-                          {doc.encoding === "gzip" ? " · gzip" : ""}
-                          {doc.type ? ` · ${doc.type}` : ""}
-                        </p>
-                      )}
-                    </details>
-                  )}
+                  </details>
                   <div className="preview">
                     <Preview doc={doc} />
                   </div>
-                </>
+                </article>
               )}
             </div>
-          </div>
+          )}
         </section>
       )}
 
       {tab === "post" && (
         <section className="panel page">
+          <button
+            type="button"
+            className="ghost edition-back"
+            onClick={() => setTab("library")}
+          >
+            ← Back to edition
+          </button>
           {incomplete && (
             <div className="incomplete-rail">
               <p className="meta" style={{ margin: 0 }}>
@@ -1869,7 +2123,7 @@ export function App() {
                 )}
                 {shortFunds && prepared && (
                   <p className="status bad">
-                    Wallet PLS looks short for this post (+20% buffer).
+                    Not enough PLS for gas — add PLS or shorten the post.
                   </p>
                 )}
                 <div className="post-actions">
@@ -1919,19 +2173,36 @@ export function App() {
                   <p className="meta">Connect wallet to publish.</p>
                 )}
                 {wrongChain && isConnected && (
-                  <p className="status bad">Switch to Pulse.</p>
+                  <p className="status bad">
+                    Wrong network — hit Switch to Pulse in the top bar.
+                  </p>
                 )}
                 {pubError && <p className="status bad">{pubError}</p>}
                 {lastManifest && (
-                  <p className="status ok">
+                  <div className="live-strip">
+                    <p className="status ok" style={{ margin: 0 }}>
+                      You’re live
+                    </p>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() => {
+                        setTab("library");
+                        void load(lastManifest);
+                      }}
+                    >
+                      Open in reader
+                    </button>
                     <a
+                      className="ghost link-btn"
                       href={SCAN_TX(lastManifest)}
                       target="_blank"
                       rel="noreferrer"
+                      title={lastManifest}
                     >
-                      {shortAddr(lastManifest)}
+                      Tx
                     </a>
-                  </p>
+                  </div>
                 )}
               </div>
               {chunks.length > 0 && (

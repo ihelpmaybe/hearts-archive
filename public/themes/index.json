@@ -1,6 +1,6 @@
 {
   "schema": "hearts-archive-theme/v1",
-  "default": "venus",
-  "packs": ["venus", "operator", "pulse"],
+  "default": "press",
+  "packs": ["press", "venus", "operator", "pulse"],
   "how": "Drop a .json pack here (same shape as venus.json). App + MCP only read this folder — no custom theme engine."
 }

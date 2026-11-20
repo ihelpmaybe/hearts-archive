@@ -8,13 +8,17 @@ export type TipToken = {
   decimals: number;
 };
 
-/** Well-known Pulse tokens (same addresses as post-fork / common desk use). */
+/**
+ * PulseChain tip presets — verified 2026-11-20 via RPC + DexScreener.
+ * HEX = pHEX state-fork (not Ethereum HEX 0x2b59…f83e…).
+ * eHEX = bridged from Ethereum (distinct asset).
+ */
 export const TIP_PRESETS: TipToken[] = [
   { id: "PLS", symbol: "PLS", address: null, decimals: 18 },
   {
     id: "HEX",
     symbol: "HEX",
-    address: "0x2b591e99afE9f83e28fA1776971E1219904EA658",
+    address: "0x2b591e99afE9f32eAA6214f7B7629768c40Eeb39",
     decimals: 8,
   },
   {
@@ -26,7 +30,7 @@ export const TIP_PRESETS: TipToken[] = [
   {
     id: "INC",
     symbol: "INC",
-    address: "0x2fa878Ab3F87CC1C9987E50FeC4b269567966aeD",
+    address: "0x2fa878Ab3F87CC1C9737Fc071108F904c0B0C95d",
     decimals: 18,
   },
   {

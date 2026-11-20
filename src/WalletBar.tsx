@@ -111,10 +111,19 @@ export function WalletBar({ onUseAsAuthor }: Props) {
                 className="primary"
                 disabled={switching}
                 onClick={() => switchChain({ chainId: pulsechain.id })}
+                title="Wallet is on the wrong chain"
               >
-                Switch
+                {switching ? "…" : "Switch to Pulse"}
               </button>
             )}
+            {isConnected &&
+              !wrongChain &&
+              pls != null &&
+              Number(pls.replace(/,/g, "")) < 1 && (
+                <span className="net-pill bad" title="Low PLS for gas">
+                  Low PLS
+                </span>
+              )}
             <button type="button" className="ghost" onClick={() => void copyAddr()}>
               {copied ? "OK" : "Copy"}
             </button>

@@ -11,3 +11,11 @@ public/lab-seed.json
 *.sqlite
 *.sqlite-*
 .vite
+# forge (dry-run MockERC20)
+cache/
+out/
+broadcast/
+
+# one-off local splice leftovers (not product)
+scripts/library-section.tsx.txt
+scripts/splice-broadsheet.mjs

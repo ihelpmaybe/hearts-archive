@@ -36,6 +36,14 @@ export function unpinFromShelf(hash: Hash) {
   writeAll(readAll().filter((r) => r.hash !== hash));
 }
 
+export function clearShelf() {
+  writeAll([]);
+}
+
+export function replaceShelf(rows: ShelfEntry[]) {
+  writeAll(rows);
+}
+
 export function mergeShelfAndRemote(
   shelf: ArchiveEntry[],
   remote: ArchiveEntry[],

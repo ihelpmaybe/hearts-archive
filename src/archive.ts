@@ -1,6 +1,7 @@
 import type { Hash, Hex } from "viem";
 import {
   ARCHIVE_SINK,
+  tryParseFrontBid,
   tryParseLike,
   tryParseManifest,
   type DocType,
@@ -32,12 +33,22 @@ export type LikeEntry = {
   manifest: Hash;
 };
 
+/** PLS deposited with a front-page claim for a manifest. */
+export type FrontBidEntry = {
+  hash: Hash;
+  from: string;
+  timeStamp: number;
+  manifest: Hash;
+  valueWei: bigint;
+};
+
 type V2Tx = {
   hash: string;
   timestamp?: string | null;
   result?: string | null;
   status?: string | null;
   raw_input?: string | null;
+  value?: string | { value?: string } | null;
   from?: { hash?: string } | string | null;
   to?: { hash?: string } | string | null;
 };
@@ -58,6 +69,21 @@ function fromHash(tx: V2Tx): string {
   if (!tx.from) return "";
   if (typeof tx.from === "string") return tx.from.toLowerCase();
   return (tx.from.hash || "").toLowerCase();
+}
+
+function txValueWei(tx: V2Tx): bigint {
+  const raw =
+    typeof tx.value === "string"
+      ? tx.value
+      : tx.value && typeof tx.value === "object"
+        ? tx.value.value
+        : undefined;
+  if (!raw) return 0n;
+  try {
+    return BigInt(raw);
+  } catch {
+    return 0n;
+  }
 }
 
 function pageQuery(params?: PageParams | null): string {
@@ -257,13 +283,76 @@ export function hasLiked(
   return dedupeLikes(likes).some((l) => l.manifest === m && l.from === a);
 }
 
+export function collectFrontBids(rows: V2Tx[]): FrontBidEntry[] {
+  const out: FrontBidEntry[] = [];
+  for (const tx of rows) {
+    if (tx.result === "error" || tx.status === "error") continue;
+    if (!tx.raw_input || tx.raw_input === "0x") continue;
+    const bid = tryParseFrontBid(tx.raw_input as Hex);
+    if (!bid) continue;
+    const valueWei = txValueWei(tx);
+    if (valueWei <= 0n) continue;
+    const ts = tx.timestamp ? Date.parse(tx.timestamp) / 1000 : 0;
+    out.push({
+      hash: tx.hash.toLowerCase() as Hash,
+      from: fromHash(tx),
+      timeStamp: Number.isFinite(ts) ? ts : 0,
+      manifest: bid.manifest,
+      valueWei,
+    });
+  }
+  return out;
+}
+
+/** One winning bid per manifest — highest PLS, newer wins ties. */
+export function dedupeFrontBids(bids: FrontBidEntry[]): FrontBidEntry[] {
+  const best = new Map<string, FrontBidEntry>();
+  for (const b of bids) {
+    const key = b.manifest.toLowerCase();
+    const prev = best.get(key);
+    if (
+      !prev ||
+      b.valueWei > prev.valueWei ||
+      (b.valueWei === prev.valueWei && b.timeStamp > prev.timeStamp)
+    ) {
+      best.set(key, b);
+    }
+  }
+  return [...best.values()].sort((a, b) => {
+    if (b.valueWei !== a.valueWei) return b.valueWei > a.valueWei ? 1 : -1;
+    return b.timeStamp - a.timeStamp;
+  });
+}
+
+/** Absolute front-page winner across all bids. */
+export function winningFrontBid(
+  bids: FrontBidEntry[],
+): FrontBidEntry | null {
+  const ranked = dedupeFrontBids(bids);
+  return ranked[0] || null;
+}
+
+export function bidForManifest(
+  bids: FrontBidEntry[],
+  manifest: string,
+): FrontBidEntry | null {
+  const m = manifest.toLowerCase();
+  return (
+    dedupeFrontBids(bids).find((b) => b.manifest.toLowerCase() === m) || null
+  );
+}
+
 export async function listSinkBundle(opts?: {
   maxItems?: number;
   onlyArchiveKind?: boolean;
   knownHashes?: Set<string>;
   /** Default 8 — stop paging once we hit a streak of txs already cached. */
   stopAfterKnown?: number;
-}): Promise<{ entries: ArchiveEntry[]; likes: LikeEntry[] }> {
+}): Promise<{
+  entries: ArchiveEntry[];
+  likes: LikeEntry[];
+  fronts: FrontBidEntry[];
+}> {
   const rows = await fetchAddressTxsPaged(ARCHIVE_SINK, {
     pageSize: 50,
     maxItems: opts?.maxItems ?? 500,
@@ -276,6 +365,7 @@ export async function listSinkBundle(opts?: {
       onlyArchiveKind: opts?.onlyArchiveKind,
     }),
     likes: collectLikes(rows),
+    fronts: collectFrontBids(rows),
   };
 }
 

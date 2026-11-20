@@ -1,5 +1,5 @@
 import type { Hash } from "viem";
-import type { ArchiveEntry, LikeEntry } from "./archive";
+import type { ArchiveEntry, FrontBidEntry, LikeEntry } from "./archive";
 import type { DocType } from "./protocol";
 import { putCachedDoc } from "./cache";
 import { upsertCatalog } from "./catalog";
@@ -19,6 +19,7 @@ export type LabSeed = {
     summary?: string | null;
     sha256?: string | null;
     encoding?: string | null;
+    replaces?: string | null;
     kind?: string | null;
     chunkCount?: number;
     cw?: boolean;
@@ -30,11 +31,19 @@ export type LabSeed = {
     manifest: string;
     timeStamp?: number;
   }>;
+  fronts?: Array<{
+    hash: string;
+    from: string;
+    manifest: string;
+    valueWei: string;
+    timeStamp?: number;
+  }>;
 };
 
 export async function loadLabSeed(): Promise<{
   entries: ArchiveEntry[];
   likes: LikeEntry[];
+  fronts: FrontBidEntry[];
   bodies: Map<string, string>;
   meta: { note?: string; generatedAt?: string };
 } | null> {
@@ -61,6 +70,7 @@ export async function loadLabSeed(): Promise<{
           summary: e.summary || undefined,
           sha256: e.sha256 || undefined,
           encoding: e.encoding || undefined,
+          replaces: e.replaces || undefined,
           chunkCount: e.chunkCount || 1,
           kind: e.kind || "pulse-archive",
           cw: !!e.cw,
@@ -83,6 +93,7 @@ export async function loadLabSeed(): Promise<{
           type: entry.type,
           sha256: entry.sha256,
           encoding: entry.encoding,
+          replaces: entry.replaces,
           cw: entry.cw,
           from: entry.from,
           postedAt: entry.timeStamp || undefined,
@@ -105,9 +116,51 @@ export async function loadLabSeed(): Promise<{
       manifest: l.manifest.toLowerCase() as Hash,
     }));
 
+    let fronts: FrontBidEntry[] = (seed.fronts || [])
+      .map((f) => {
+        try {
+          return {
+            hash: f.hash.toLowerCase() as Hash,
+            from: f.from.toLowerCase(),
+            timeStamp: f.timeStamp || 0,
+            manifest: f.manifest.toLowerCase() as Hash,
+            valueWei: BigInt(f.valueWei),
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((f): f is FrontBidEntry => !!f && f.valueWei > 0n);
+
+    // Lab always shows a paid lead if seed omitted fronts (+ a prior day for editions)
+    if (!fronts.length && entries.length) {
+      const tip =
+        entries.find((e) => e.tags?.includes("series")) || entries[0];
+      const runner = entries.find((e) => e.hash !== tip.hash) || tip;
+      const now = Math.floor(Date.now() / 1000);
+      const yesterday = now - 86_400;
+      fronts = [
+        {
+          hash: ("0x" + "e".repeat(64)) as Hash,
+          from: runner.from || "0xlab",
+          timeStamp: yesterday,
+          manifest: runner.hash,
+          valueWei: 8n * 10n ** 18n,
+        },
+        {
+          hash: ("0x" + "f".repeat(64)) as Hash,
+          from: tip.from || "0xlab",
+          timeStamp: tip.timeStamp || now,
+          manifest: tip.hash,
+          valueWei: 25n * 10n ** 18n,
+        },
+      ];
+    }
+
     return {
       entries,
       likes,
+      fronts,
       bodies,
       meta: { note: seed.note, generatedAt: seed.generatedAt },
     };

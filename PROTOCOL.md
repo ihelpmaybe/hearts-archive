@@ -1,58 +1,79 @@
-# Heart’s Archive protocol
+# Heart’s Archive — one pager
 
-Compatible with Raven-style on-chain documents on PulseChain (369).  
-Wire format / `kind: "pulse-archive"` unchanged.
+On-chain broadsheet for PulseChain. Write text to `0x…feed`, chunks to `0x0`. Highest PLS front-bid owns A1. Private desk tool — not public product infra.
 
-## Addresses
+## Use it
 
-| Role | Address |
+1. **Connect** wallet on Pulse (top bar). Need a little PLS for gas.
+2. **Post** → write text → **Publish**. When it lands you see **You’re live** → Open in reader.
+3. **Front page** paints from local cache. Hit **Sync** when you want new posts from `…feed`.
+4. **Like** = on-chain sign-off. **Tip** = send PLS / pHEX / INC / etc. to the author (not a like).
+5. **Buy A1** = PLS front-bid to `…feed`. Highest bid owns the lead until outbid.
+6. **Edition** = Live, or a prior UTC day frozen from bid timestamps.
+
+Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`.
+
+## Keys
+
+| | |
 |---|---|
-| Chunk sink | `0x0000…0000` (burn / zero) |
+| Chunk sink | `0x0000…0000` |
 | Archive inbox | `0x0000…feed` |
+| Cap | 150 KB original text |
+| Write mime | text only |
+| Discovery | Sync `…feed` (incremental) |
+| Share | `#/doc/0x…` (hash ≠ browse) |
 
-## Flow
+## Wire (short)
 
-1. Split body into ≤20 KiB parts (after optional gzip)
-2. Each part → tx **to zero**, calldata = payload
-3. Manifest JSON → tx **to `…feed`**, lists chunk tx hashes
+1. Optional gzip → split ≤20 KiB parts  
+2. Each part → tx to **zero**, calldata = raw bytes (legacy Raven JSON+base64 still readable)  
+3. Manifest JSON → tx to **`…feed`** listing chunk hashes (+ title/tags/`replaces`/sha256)  
+4. Like → JSON `{ kind: "pulse-archive-like", manifest }` to `…feed`
 
-## Chunk calldata
+## Client habits
+
+- Local-first: catalog + docs + likes in IndexedDB; re-open = no RPC  
+- Free gas est (no estimateGas while typing); balance gate before Publish  
+- Series: `replaces` chain collapses in Library (tip + older)  
+- Export/Import = shelf + catalog JSON backup  
+- `j` / `k` move cards, `Esc` clears reader  
+- Classic LOC plates on the face only — authors cannot publish images  
+- Soft mute holds blunt lewd wording off the face until opened  
+- Tip presets use **Pulse** addresses (pHEX ≠ Ethereum HEX)
+
+## Verify locally
+
+```bash
+npm run check      # tsc + lint + unit + smoke + lab
+npm run sim:dry    # Post → Sync → Like → Tip PLS + ERC-20 on anvil
+npm run sim:seed   # news + book + 3-card series → public/lab-seed.json
+npm run dev        # :5177
+```
+
+## Likes payload
+
+```json
+{ "kind": "pulse-archive-like", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.6.0" }
+```
+
+Count unique `(manifest, from)`.
+
+## Front-page bid
+
+JSON calldata → `…feed` **with PLS `value`**:
+
+```json
+{ "kind": "pulse-archive-front", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.6.0" }
+```
+
+Highest `value` wins the lead headline. Outbid to take #1. (Token / “own coin” rails can layer later — PLS first.)
+
+## Chunk eras
 
 | Era | Format |
 |---|---|
 | Legacy / Raven | UTF-8 JSON `{ chunkData: "<base64>", mimeType }` |
-| Archive v0.4+ write | **Raw bytes** as tx `data` (no JSON) |
+| Archive v0.4+ write | **Raw bytes** as tx `data` |
 
-Readers must accept both (`decodeChunkTxInput`).
-
-## Manifest (JSON in calldata)
-
-Required: `mimeType`, `chunkHashes[]`  
-Archive writes also set: `kind: "pulse-archive"`, `app`, `encoding`, `sha256`, sizes, optional title/tags/summary/note/cw/replaces.
-
-`encoding`: `gzip` | `raw`  
-`sha256` is of the **original** uncompressed body.
-
-## Likes (v0.5)
-
-JSON calldata → `…feed`:
-
-```json
-{ "kind": "pulse-archive-like", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.5.0" }
-```
-
-Count unique `(manifest, from)`. Tip (PLS to author) stays separate.
-
-## Client rules (this app)
-
-- **Text only** writes (`text/plain;charset=utf-8` / json). No image/PDF/audio/video publish.
-- **No NSFW / porn** in this client (CW flag removed; don’t post it).
-- Reader shows text; other mime from the feed → “not text” notice (Raven may still have binaries).
-- Refuse original body &gt; 150 KiB
-- Do not republish if same `sha256` already in shelf/catalog
-- **Local-first:** catalog + opened docs + likes in IndexedDB. Boot paints local (no RPC). **Sync** pulls `…feed` (incremental). Re-open uses local copy.
-- **Lab seed** off by default (`?lab=1` / checkbox / `VITE_LAB_SEED=1`).
-- **RPC hygiene:** free local gas est; no duplicate getTx/getBlock on open; balance stale 60s; explorer page gaps.
-- Like = on-chain sign-off to `…feed` (wait receipt; cached locally)
-- Tip = PLS **or any ERC-20** to author — beside Like in the reader
-- `replaces` → earlier/newer version links in the reader
+Readers accept both (`decodeChunkTxInput`).

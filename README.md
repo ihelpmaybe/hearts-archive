@@ -1,50 +1,100 @@
 # Heart’s Archive
 
-Local PulseChain document archive (Raven-compatible read; write to `0x…feed`).  
-On-chain `kind` / app id stays `pulse-archive` for compatibility.
+**On-chain newspaper for PulseChain.**  
+Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The desk reads like a broadsheet — not a feed of cards.
 
-**Status:** experimental desk tool — not public product infra.
+> Experimental, text-only, Raven-compatible. Private desk energy — not a hosted product.
 
-Lab fake posts stay **off** unless `?lab=1`, `VITE_LAB_SEED=1`, or the Lab seed checkbox.
+---
+
+## Why it exists
+
+| Problem | This desk |
+|---|---|
+| Feeds bury signal in chrome | Broadsheet front: nameplate, A1, columns |
+| “Pinning” is social theater | **Pay PLS** to `0x…feed` to hold the lead |
+| Media boards invite porn | **Text-only publish** + classic LOC plates on the face + soft mute |
+| Yesterday disappears | **Daily editions** from bid timestamps (UTC) |
+
+---
 
 ## Quick start
 
 ```bash
 npm install
-npm run check    # typecheck + lint + unit tests + smoke
+npm run check    # typecheck · lint · unit · smoke · lab
 npm run dev      # http://127.0.0.1:5177
 ```
+
+Connect on **Pulse**. Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
+
+Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
+
+---
+
+## What you can do
+
+1. **Write** → publish UTF-8 text (gzip when it helps; hard cap 150 KB)
+2. **Sync** → pull `…feed` into a local-first library (IndexedDB)
+3. **Buy A1** → PLS value on a front-bid tx; highest wins the lead
+4. **Like / tip** → on-chain sign-off; tip pHEX / INC / etc. to the author
+5. **Edition** → Live paper, or freeze A1 as-of a prior UTC day
+6. **Themes** → Press (default broadsheet), plus Sailor / Venus / Operator / Pulse packs
+
+---
 
 ## Scripts
 
 | Script | What |
 |---|---|
-| `npm run check` | Gate: `tsc` + eslint + vitest + protocol smoke |
-| `npm run dev` | Vite on `:5177` (explorer proxied) |
+| `npm run check` | Gate before you share a branch |
+| `npm run dev` | Vite on `:5177` |
 | `npm run build` | Production build |
-| `npm run test` | Unit tests |
-| `npm run lint` | ESLint |
-| `npm run smoke` | Protocol / explorer smoke (Node) |
-| `npm run sim:lab` | **Preferred** — local anvil publish/read/like (no Pulse trail) |
-| `npm run sim:dry` | One-shot Post→Sync→Like→Tip on anvil |
-| `npm run sim` | Foundry stress · 1000 users → `sim/out/` |
-| `npm run sim:quick` | Stress, 100 users |
-| `npm run catalog` | Optional static `public/catalog.json` |
+| `npm run sim:lab` | Local anvil publish / read / like (no Pulse trail) |
+| `npm run sim:dry` | Post → Sync → Like → Tip on anvil |
+| `npm run sim:seed` | Rebuild `public/lab-seed.json` |
+| `npm run sim` | Foundry stress → `sim/out/` (gitignored) |
+
+---
 
 ## Layout
 
-- `src/` — React app (Library + Post)
-- `sim/` — anvil load sim + smoke
-- `scripts/` — catalog builder + check runner
+```
+src/           React desk (Library · Post · broadsheet)
+public/plates  Classic LOC public-domain cuts (face art only)
+public/themes  Theme packs (Press default)
+sim/           Anvil lab + dry-run + stress
+PROTOCOL.md    Operator one-pager
+```
 
-## Protocol notes (v0.4)
+Authors **cannot** publish images through this app. Plates are curated face art only — see `public/plates/CREDITS.txt`.
 
-- Manifest → `…feed`; chunks → `0x0`
-- New chunks: **raw calldata** (legacy JSON+base64 still readable)
-- Gzip when it helps; skip image/video/audio/pdf/zip
-- Hard publish cap: **150 KB** original
-- Client: explorer paging, IndexedDB catalog, sha republish gate, stuck-publish retry
+---
 
-## Foundry
+## Protocol (short)
 
-Anvil lives at `%USERPROFILE%\.foundry\bin`. `npm run sim` starts it on `:8549`.
+| | |
+|---|---|
+| Archive inbox | `0x0000…feed` |
+| Chunk sink | `0x0000…0000` |
+| Write mime | text only |
+| Front bid | `{ "kind": "pulse-archive-front", "manifest": "0x…" }` + **PLS `value`** |
+| Like | `{ "kind": "pulse-archive-like", "manifest": "0x…" }` |
+| Share | `#/doc/0x…` |
+
+On-chain `app` id stays `pulse-archive` for Raven compatibility.
+
+---
+
+## Safety
+
+- Never paste seed phrases into the archive
+- Lab ≠ mainnet — Foundry burns nothing on Pulse
+- Soft mute is a blunt keyword screen, not an NSFW classifier
+- Tips use **Pulse** token addresses (pHEX ≠ Ethereum HEX)
+
+---
+
+## License / status
+
+Private experimental tool. Collaborate carefully; mainnet ink is forever.

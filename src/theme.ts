@@ -19,9 +19,15 @@ export type ThemeIndex = {
 const STORAGE_KEY = "hearts-archive-theme";
 const FONT_LINK_ID = "ha-theme-fonts";
 
-export function getStoredThemeId(fallback = "venus"): string {
+const STORAGE_KEY_V2 = "hearts-archive-theme-v2";
+
+export function getStoredThemeId(fallback = "press"): string {
   try {
-    return localStorage.getItem(STORAGE_KEY) || fallback;
+    return (
+      localStorage.getItem(STORAGE_KEY_V2) ||
+      localStorage.getItem(STORAGE_KEY) ||
+      fallback
+    );
   } catch {
     return fallback;
   }
@@ -29,6 +35,7 @@ export function getStoredThemeId(fallback = "venus"): string {
 
 export function storeThemeId(id: string) {
   try {
+    localStorage.setItem(STORAGE_KEY_V2, id);
     localStorage.setItem(STORAGE_KEY, id);
   } catch {
     /* */
@@ -86,13 +93,13 @@ export function applyThemePack(pack: ThemePack) {
 
 export async function loadAndApplyTheme(id?: string): Promise<ThemePack> {
   const index = await fetchThemeIndex().catch(() => ({
-    default: "venus",
-    packs: ["venus"],
+    default: "press",
+    packs: ["press"],
   }));
-  const wanted = id || getStoredThemeId(index.default || "venus");
+  const wanted = id || getStoredThemeId(index.default || "press");
   const pick = index.packs.includes(wanted)
     ? wanted
-    : index.default || index.packs[0] || "venus";
+    : index.default || index.packs[0] || "press";
   const pack = await fetchThemePack(pick);
   applyThemePack(pack);
   return pack;

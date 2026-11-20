@@ -34,8 +34,7 @@ export function ThemePicker({ onApplied }: Props) {
   const current = items.find((t) => t.id === active) || items[0];
 
   return (
-    <label className="theme-picker">
-      <span className="theme-picker-label">Theme</span>
+    <label className="theme-picker theme-picker-quiet">
       <span
         className="theme-swatch"
         style={{ background: current?.swatch || "var(--accent)" }}
