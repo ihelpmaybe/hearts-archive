@@ -9,10 +9,14 @@ import { pulsechain } from "wagmi/chains";
 import { parseEther, type Hash } from "viem";
 import { WalletBar } from "./WalletBar";
 import {
+  countLikesByManifest,
   dedupeBySha256,
+  dedupeLikes,
+  hasLiked,
   listArchiveFromAuthor,
-  listArchiveFromSink,
+  listSinkBundle,
   type ArchiveEntry,
+  type LikeEntry,
 } from "./archive";
 import { getCachedDoc, listCachedSummaries, putCachedDoc } from "./cache";
 import {
@@ -52,6 +56,7 @@ import {
   sharePath,
   shareUrl,
   MAX_PUBLISH_BYTES,
+  sendLike,
   type ChunkProgress,
   type DocType,
   type PreparedPublish,
@@ -173,6 +178,9 @@ export function App() {
   const [tipPls, setTipPls] = useState("1");
   const [citeMsg, setCiteMsg] = useState<string | null>(null);
   const [loadSource, setLoadSource] = useState<string | null>(null);
+  const [likes, setLikes] = useState<LikeEntry[]>([]);
+  const [liking, setLiking] = useState(false);
+  const [likeError, setLikeError] = useState<string | null>(null);
   const [tab, setTab] = useState<"library" | "post">("library");
   const [incomplete, setIncomplete] = useState<IncompletePublish | null>(() =>
     loadIncomplete(),
@@ -416,6 +424,8 @@ export function App() {
     [publicClient, applyLoaded],
   );
 
+  const likeCounts = useMemo(() => countLikesByManifest(likes), [likes]);
+
   const refreshLibrary = useCallback(async () => {
     setBrowsing(true);
     setBrowseError(null);
@@ -432,16 +442,27 @@ export function App() {
     );
     try {
       const author = authorInput.trim();
-      const remote = /^0x[a-fA-F0-9]{40}$/.test(author)
-        ? await listArchiveFromAuthor(author as `0x${string}`, {
-            maxItems: 500,
-          })
-        : await listArchiveFromSink({
-            onlyArchiveKind: archiveOnly,
-            maxItems: 500,
-          });
-      await upsertCatalog(remote);
-      setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
+      if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
+        const remote = await listArchiveFromAuthor(author as `0x${string}`, {
+          maxItems: 500,
+        });
+        await upsertCatalog(remote);
+        setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
+        // Likes still live on the shared sink
+        const bundle = await listSinkBundle({
+          onlyArchiveKind: false,
+          maxItems: 500,
+        });
+        setLikes(dedupeLikes(bundle.likes));
+      } else {
+        const bundle = await listSinkBundle({
+          onlyArchiveKind: archiveOnly,
+          maxItems: 500,
+        });
+        await upsertCatalog(bundle.entries);
+        setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
+        setLikes(dedupeLikes(bundle.likes));
+      }
     } catch (e) {
       setBrowseError(
         (e instanceof Error ? e.message : String(e)) +
@@ -764,6 +785,44 @@ export function App() {
     });
   }
 
+  async function likeDoc() {
+    if (!doc || !walletClient || !publicClient || !address) return;
+    if (wrongChain) {
+      setLikeError("Switch to Pulse");
+      return;
+    }
+    if (hasLiked(likes, doc.manifestHash, address)) {
+      setLikeError("Already liked from this wallet");
+      return;
+    }
+    setLiking(true);
+    setLikeError(null);
+    try {
+      const txHash = await sendLike({
+        walletClient,
+        publicClient,
+        account: address,
+        manifestHash: doc.manifestHash,
+      });
+      setLikes((prev) =>
+        dedupeLikes([
+          {
+            hash: txHash,
+            from: address.toLowerCase(),
+            timeStamp: Math.floor(Date.now() / 1000),
+            manifest: doc.manifestHash.toLowerCase() as Hash,
+          },
+          ...prev,
+        ]),
+      );
+      setCiteMsg("Liked on-chain");
+    } catch (e) {
+      setLikeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLiking(false);
+    }
+  }
+
   const canRetry = chunks.some((c) => c.status === "error");
 
   useEffect(() => {
@@ -1005,6 +1064,7 @@ export function App() {
                       {e.type || e.mimeType} · {e.chunkCount} chunk
                       {e.chunkCount === 1 ? "" : "s"}
                       {e.encoding === "gzip" ? " · gz" : ""}
+                      {` · ♥ ${likeCounts.get(e.hash.toLowerCase()) || 0}`}
                     </span>
                     <span>
                       {shortAddr(e.from)}{" "}
@@ -1052,6 +1112,29 @@ export function App() {
                       {doc.title || "(untitled)"}
                     </h3>
                     <div className="reader-actions">
+                      <button
+                        type="button"
+                        className={
+                          address &&
+                          hasLiked(likes, doc.manifestHash, address)
+                            ? "primary"
+                            : "ghost"
+                        }
+                        disabled={
+                          liking ||
+                          !isConnected ||
+                          wrongChain ||
+                          !walletClient ||
+                          (!!address &&
+                            hasLiked(likes, doc.manifestHash, address))
+                        }
+                        onClick={() => void likeDoc()}
+                        title="Sign off on-chain (like)"
+                      >
+                        {liking
+                          ? "…"
+                          : `Like ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
+                      </button>
                       <a
                         href={doc.objectUrl}
                         download={`pulse-doc-${doc.manifestHash.slice(2, 10)}`}
@@ -1088,6 +1171,7 @@ export function App() {
                       </a>
                     </div>
                   </div>
+                  {likeError && <p className="status bad">{likeError}</p>}
                   <p className="meta reader-meta">
                     {formatPostedAt(doc.postedAt) && (
                       <>
@@ -1106,6 +1190,7 @@ export function App() {
                     {doc.type || doc.mimeType} ·{" "}
                     {(doc.size / 1024).toFixed(1)} KB
                     {doc.encoding === "gzip" ? " · gz" : ""}
+                    {` · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0} likes`}
                     {loadSource ? ` · ${loadSource}` : ""}
                   </p>
                   {(doc.summary ||

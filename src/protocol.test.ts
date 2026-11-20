@@ -11,6 +11,8 @@ import {
   parseTags,
   shouldSkipGzip,
   splitBytes,
+  tryParseLike,
+  utf8ToHex,
   CHUNK_BYTES,
 } from "./protocol";
 
@@ -83,5 +85,34 @@ describe("helpers", () => {
   it("exports caps", () => {
     expect(MAX_PUBLISH_BYTES).toBe(150 * 1024);
     expect(APP_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+describe("likes", () => {
+  it("parses like calldata", () => {
+    const manifest =
+      "0x99dc0376f563ea78ecd5a6faff167d732cc5ae528b47e4121f074128a97e537d";
+    const data = utf8ToHex(
+      JSON.stringify({
+        kind: "pulse-archive-like",
+        manifest,
+        app: "pulse-archive",
+      }),
+    );
+    const like = tryParseLike(data);
+    expect(like?.manifest).toBe(manifest.toLowerCase());
+    expect(like?.kind).toBe("pulse-archive-like");
+  });
+
+  it("rejects docs as likes", () => {
+    const data = utf8ToHex(
+      JSON.stringify({
+        mimeType: "text/plain",
+        chunkHashes: [
+          "0x99dc0376f563ea78ecd5a6faff167d732cc5ae528b47e4121f074128a97e537d",
+        ],
+      }),
+    );
+    expect(tryParseLike(data)).toBeNull();
   });
 });

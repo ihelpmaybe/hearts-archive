@@ -33,9 +33,20 @@ Archive writes also set: `kind: "pulse-archive"`, `app`, `encoding`, `sha256`, s
 `encoding`: `gzip` | `raw`  
 `sha256` is of the **original** uncompressed body.
 
+## Likes (v0.5)
+
+JSON calldata → `…feed`:
+
+```json
+{ "kind": "pulse-archive-like", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.5.0" }
+```
+
+Count unique `(manifest, from)`. Tip (PLS to author) stays separate.
+
 ## Client rules (this app)
 
 - Skip gzip for image/video/audio/pdf/zip
 - Refuse original body &gt; 150 KiB
 - Do not republish if same `sha256` already in shelf/catalog
 - Browse via explorer paging + local IndexedDB catalog
+- Like = on-chain sign-off to `…feed`

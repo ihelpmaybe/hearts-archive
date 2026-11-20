@@ -1,7 +1,7 @@
 {
   "name": "hearts-archive",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -18,7 +18,8 @@
     "check": "node scripts/check.mjs",
     "catalog": "node scripts/build-catalog.mjs",
     "sim": "node sim/run-sim.mjs",
-    "sim:quick": "node sim/run-sim.mjs --users 100 --concurrency 20"
+    "sim:quick": "node sim/run-sim.mjs --users 100 --concurrency 20",
+    "sim:lab": "node sim/lab.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",

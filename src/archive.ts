@@ -1,6 +1,7 @@
 import type { Hash, Hex } from "viem";
 import {
   ARCHIVE_SINK,
+  tryParseLike,
   tryParseManifest,
   type DocType,
   type ManifestPayload,
@@ -22,6 +23,13 @@ export type ArchiveEntry = {
   chunkCount: number;
   kind?: string;
   cw?: boolean;
+};
+
+export type LikeEntry = {
+  hash: Hash;
+  from: string;
+  timeStamp: number;
+  manifest: Hash;
 };
 
 type V2Tx = {
@@ -173,16 +181,79 @@ export function dedupeBySha256(entries: ArchiveEntry[]): ArchiveEntry[] {
   return out;
 }
 
-export async function listArchiveFromSink(opts?: {
+export function collectLikes(rows: V2Tx[]): LikeEntry[] {
+  const out: LikeEntry[] = [];
+  for (const tx of rows) {
+    if (tx.result === "error" || tx.status === "error") continue;
+    if (!tx.raw_input || tx.raw_input === "0x") continue;
+    const like = tryParseLike(tx.raw_input as Hex);
+    if (!like) continue;
+    const ts = tx.timestamp ? Date.parse(tx.timestamp) / 1000 : 0;
+    out.push({
+      hash: tx.hash.toLowerCase() as Hash,
+      from: fromHash(tx),
+      timeStamp: Number.isFinite(ts) ? ts : 0,
+      manifest: like.manifest,
+    });
+  }
+  return out;
+}
+
+/** Unique likes per (manifest, from) — latest wins. */
+export function dedupeLikes(likes: LikeEntry[]): LikeEntry[] {
+  const seen = new Set<string>();
+  const out: LikeEntry[] = [];
+  const sorted = [...likes].sort((a, b) => b.timeStamp - a.timeStamp);
+  for (const l of sorted) {
+    const key = `${l.manifest}:${l.from}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(l);
+  }
+  return out;
+}
+
+export function countLikesByManifest(likes: LikeEntry[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const l of dedupeLikes(likes)) {
+    map.set(l.manifest, (map.get(l.manifest) || 0) + 1);
+  }
+  return map;
+}
+
+export function hasLiked(
+  likes: LikeEntry[],
+  manifest: string,
+  from: string,
+): boolean {
+  const m = manifest.toLowerCase();
+  const a = from.toLowerCase();
+  return dedupeLikes(likes).some((l) => l.manifest === m && l.from === a);
+}
+
+export async function listSinkBundle(opts?: {
   maxItems?: number;
   onlyArchiveKind?: boolean;
-}): Promise<ArchiveEntry[]> {
+}): Promise<{ entries: ArchiveEntry[]; likes: LikeEntry[] }> {
   const rows = await fetchAddressTxsPaged(ARCHIVE_SINK, {
     pageSize: 50,
     maxItems: opts?.maxItems ?? 500,
     maxPages: 20,
   });
-  return collectManifests(rows, { onlyArchiveKind: opts?.onlyArchiveKind });
+  return {
+    entries: collectManifests(rows, {
+      onlyArchiveKind: opts?.onlyArchiveKind,
+    }),
+    likes: collectLikes(rows),
+  };
+}
+
+export async function listArchiveFromSink(opts?: {
+  maxItems?: number;
+  onlyArchiveKind?: boolean;
+}): Promise<ArchiveEntry[]> {
+  const { entries } = await listSinkBundle(opts);
+  return entries;
 }
 
 export async function listArchiveFromAuthor(

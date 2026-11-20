@@ -33,6 +33,10 @@ const steps = [
     name: "smoke",
     args: [join(root, "sim/smoke.mjs")],
   },
+  {
+    name: "lab",
+    args: [join(root, "sim/lab.mjs")],
+  },
 ];
 
 let failed = 0;

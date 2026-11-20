@@ -23,8 +23,9 @@ npm run dev      # http://127.0.0.1:5177
 | `npm run test` | Unit tests |
 | `npm run lint` | ESLint |
 | `npm run smoke` | Protocol / explorer smoke (Node) |
-| `npm run sim` | Foundry anvil · 1000 gaming users → `sim/out/` |
-| `npm run sim:quick` | Same, 100 users |
+| `npm run sim:lab` | **Preferred** — local anvil publish/read/like (no Pulse trail) |
+| `npm run sim` | Foundry stress · 1000 users → `sim/out/` |
+| `npm run sim:quick` | Stress, 100 users |
 | `npm run catalog` | Optional static `public/catalog.json` |
 
 ## Layout

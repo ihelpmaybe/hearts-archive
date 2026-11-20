@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { gzipSync } from "node:zlib";
+import { gzipSync, gunzipSync } from "node:zlib";
 
 export const ARCHIVE_SINK =
   "0x000000000000000000000000000000000000feed";
 export const CHUNK_BYTES = 20 * 1024;
 export const MAX_PUBLISH_BYTES = 150 * 1024;
 export const APP_NAME = "pulse-archive";
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.5.0";
 
 export function shouldSkipGzip(mime) {
   const m = mime.toLowerCase();
@@ -32,6 +32,20 @@ export function bytesToBase64(bytes) {
 
 export function utf8ToHex(text) {
   return `0x${Buffer.from(text, "utf8").toString("hex")}`;
+}
+
+export function hexToUtf8(hex) {
+  const h = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return Buffer.from(h, "hex").toString("utf8");
+}
+
+export function bytesToHex(bytes) {
+  return Buffer.from(bytes).toString("hex");
+}
+
+export function hexToBytes(hex) {
+  const h = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return Buffer.from(h, "hex");
 }
 
 export function docTypeFromMime(mime) {
@@ -117,7 +131,8 @@ export function buildManifest({ prepared, meta, chunkHashes }) {
   };
 }
 
-export function chunkCalldata(part, mimeType) {
+/** Legacy JSON+base64 (Raven / early sim). */
+export function chunkCalldataLegacy(part, mimeType) {
   return utf8ToHex(
     JSON.stringify({
       chunkData: bytesToBase64(part),
@@ -126,12 +141,111 @@ export function chunkCalldata(part, mimeType) {
   );
 }
 
+/** App v0.4+ write path — raw bytes as tx data. */
+export function chunkCalldataRaw(part) {
+  return `0x${bytesToHex(part)}`;
+}
+
+/** Default write = raw (matches app). */
+export function chunkCalldata(part) {
+  return chunkCalldataRaw(part);
+}
+
 export function manifestCalldata(manifest) {
   return utf8ToHex(JSON.stringify(manifest));
 }
 
+export function likeCalldata(manifestHash) {
+  return utf8ToHex(
+    JSON.stringify({
+      kind: "pulse-archive-like",
+      app: APP_NAME,
+      appVersion: APP_VERSION,
+      manifest: String(manifestHash).toLowerCase(),
+    }),
+  );
+}
+
+export function tryParseLike(input) {
+  try {
+    if (!input || input === "0x") return null;
+    const obj = JSON.parse(hexToUtf8(input));
+    if (obj?.kind !== "pulse-archive-like") return null;
+    if (
+      typeof obj.manifest !== "string" ||
+      !/^0x[a-fA-F0-9]{64}$/i.test(obj.manifest)
+    ) {
+      return null;
+    }
+    return {
+      kind: "pulse-archive-like",
+      manifest: obj.manifest.toLowerCase(),
+      app: obj.app,
+      appVersion: obj.appVersion,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function tryParseManifest(input) {
+  try {
+    if (!input || input === "0x") return null;
+    const obj = JSON.parse(hexToUtf8(input));
+    if (
+      !obj?.mimeType ||
+      !Array.isArray(obj.chunkHashes) ||
+      obj.chunkHashes.length === 0
+    ) {
+      return null;
+    }
+    return obj;
+  } catch {
+    return null;
+  }
+}
+
+export function decodeChunkTxInput(input) {
+  const hex = input.startsWith("0x") ? input : `0x${input}`;
+  try {
+    const text = hexToUtf8(hex);
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith("{")) {
+      const chunk = JSON.parse(trimmed);
+      if (chunk.chunkHex) return hexToBytes(`0x${chunk.chunkHex}`);
+      if (chunk.chunkData) return Buffer.from(chunk.chunkData, "base64");
+      throw new Error("No chunk data");
+    }
+  } catch {
+    /* raw */
+  }
+  return hexToBytes(hex);
+}
+
+export function readDocumentFromChain(publicClientGetTx, manifestHash) {
+  // publicClientGetTx(hash) => { input }
+  return (async () => {
+    const tx = await publicClientGetTx(manifestHash);
+    const manifest = tryParseManifest(tx.input);
+    if (!manifest) throw new Error("not a manifest");
+    const pieces = [];
+    for (const h of manifest.chunkHashes) {
+      const cTx = await publicClientGetTx(h);
+      pieces.push(decodeChunkTxInput(cTx.input));
+    }
+    let out = Buffer.concat(pieces.map((p) => Buffer.from(p)));
+    if (manifest.encoding === "gzip") {
+      out = gunzipSync(out);
+    }
+    const got = sha256Hex(out);
+    if (manifest.sha256 && got !== manifest.sha256.toLowerCase()) {
+      throw new Error(`sha mismatch got=${got} want=${manifest.sha256}`);
+    }
+    return { manifest, bytes: out };
+  })();
+}
+
 export function fakeJpeg(size) {
-  // JFIF-ish header + entropy (won't gzip well)
   const buf = Buffer.alloc(size);
   buf[0] = 0xff;
   buf[1] = 0xd8;
@@ -142,7 +256,6 @@ export function fakeJpeg(size) {
 }
 
 export function estimateGasFromCalldata(dataHex) {
-  // intrinsic 21000 + 16 gas/non-zero byte (calldata mostly non-zero after hex)
   const bytes = Math.max(0, (dataHex.length - 2) / 2);
   return 21000 + Math.ceil(bytes) * 16;
 }

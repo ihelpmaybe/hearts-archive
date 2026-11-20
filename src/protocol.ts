@@ -12,7 +12,7 @@ import {
 } from "viem";
 
 export const APP_NAME = "pulse-archive";
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.5.0";
 export const CHUNK_BYTES = 20 * 1024;
 export const PULSE_CHAIN_ID = 369;
 /** Hard cap on original file size before publish (gas / orphan risk). */
@@ -313,6 +313,64 @@ export function tryParseManifest(input: Hex | string): ManifestPayload | null {
   } catch {
     return null;
   }
+}
+
+/** On-chain “like” / sign-off — small JSON tx to …feed. */
+export type LikePayload = {
+  kind: "pulse-archive-like";
+  manifest: Hash;
+  app?: string;
+  appVersion?: string;
+};
+
+export function tryParseLike(input: Hex | string): LikePayload | null {
+  try {
+    if (!input || input === "0x") return null;
+    const obj = JSON.parse(hexToUtf8(input)) as Partial<LikePayload>;
+    if (obj?.kind !== "pulse-archive-like") return null;
+    if (
+      typeof obj.manifest !== "string" ||
+      !/^0x[a-fA-F0-9]{64}$/i.test(obj.manifest)
+    ) {
+      return null;
+    }
+    return {
+      kind: "pulse-archive-like",
+      manifest: obj.manifest.toLowerCase() as Hash,
+      app: obj.app,
+      appVersion: obj.appVersion,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function sendLike(opts: {
+  walletClient: WalletClient;
+  publicClient: PublicClient;
+  account: `0x${string}`;
+  manifestHash: Hash;
+}): Promise<Hash> {
+  const { walletClient, publicClient, account, manifestHash } = opts;
+  const payload: LikePayload = {
+    kind: "pulse-archive-like",
+    app: APP_NAME,
+    appVersion: APP_VERSION,
+    manifest: manifestHash.toLowerCase() as Hash,
+  };
+  const data = utf8ToHex(JSON.stringify(payload));
+  const hash = await walletClient.sendTransaction({
+    account,
+    chain: walletClient.chain,
+    to: ARCHIVE_SINK,
+    value: 0n,
+    data,
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") {
+    throw new Error("Like transaction reverted");
+  }
+  return hash;
 }
 
 export type PublishMetaInput = {
