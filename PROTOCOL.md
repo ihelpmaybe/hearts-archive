@@ -22,7 +22,7 @@ Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`
 | Cap | 150 KB original text |
 | Write mime | text only |
 | Discovery | Sync `…feed` (incremental) |
-| Share | `#/doc/0x…` (hash ≠ browse) |
+| Share | `#/369/0x…` (hash ≠ browse; Front page clears it) |
 
 ## Wire (short)
 

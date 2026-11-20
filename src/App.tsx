@@ -84,6 +84,7 @@ import {
   makeObjectUrl,
   parseRouteHash,
   parseTags,
+  clearDocRoute,
   preparePublishPayload,
   publishPrepared,
   readDocument,
@@ -1268,9 +1269,7 @@ export function App() {
         openHashRef.current = null;
         setReadError(null);
         setLoadSource(null);
-        if (window.location.hash.startsWith("#/doc/")) {
-          window.history.replaceState(null, "", "#/");
-        }
+        clearDocRoute();
         return;
       }
       if (e.key !== "j" && e.key !== "k") return;
@@ -1548,7 +1547,7 @@ export function App() {
                 <div className="row">
                   <input
                     type="text"
-                    placeholder="Paste 0x… or #/doc/0x…"
+                    placeholder="Paste 0x… or #/369/0x…"
                     value={hashInput}
                     onChange={(e) => setHashInput(e.target.value.trim())}
                     spellCheck={false}
@@ -1776,9 +1775,8 @@ export function App() {
                   setDoc(null);
                   openHashRef.current = null;
                   setReadError(null);
-                  if (window.location.hash.startsWith("#/doc/")) {
-                    window.history.replaceState(null, "", "#/");
-                  }
+                  setLoadSource(null);
+                  clearDocRoute();
                 }}
               >
                 ← Front page

@@ -79,7 +79,7 @@ Authors **cannot** publish images through this app — text face only.
 | Write mime | text only |
 | Front bid | `{ "kind": "pulse-archive-front", "manifest": "0x…" }` + **PLS `value`** |
 | Like | `{ "kind": "pulse-archive-like", "manifest": "0x…" }` |
-| Share | `#/doc/0x…` |
+| Share | `#/369/0x…` |
 
 On-chain `app` id stays `pulse-archive` for Raven compatibility.
 

@@ -188,6 +188,14 @@ export function parseRouteHash(hash: string): Hash | null {
   return m ? (m[1].toLowerCase() as Hash) : null;
 }
 
+/** Leave the reader without leaving a sticky deep-link (reload-safe). */
+export function clearDocRoute(): void {
+  if (typeof window === "undefined") return;
+  if (!parseRouteHash(window.location.hash)) return;
+  const base = `${window.location.pathname}${window.location.search}`;
+  window.history.replaceState(null, "", `${base}#/`);
+}
+
 export function sharePath(manifestHash: Hash): string {
   return `#/${PULSE_CHAIN_ID}/${manifestHash}`;
 }
