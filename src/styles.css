@@ -497,56 +497,6 @@ a.link-btn {
   margin: 0 0 0.55rem;
 }
 
-.hero-well {
-  display: block;
-  width: 100%;
-  border: 0;
-  padding: 0;
-  margin: 0.15rem 0 0.55rem;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.hero-plate {
-  display: block;
-  width: 100%;
-  height: clamp(160px, 26vw, 240px);
-  object-fit: cover;
-  object-position: center;
-  filter: grayscale(1) contrast(1.05);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
-}
-
-.hero-caption {
-  display: block;
-  font-family: var(--font-ui);
-  font-size: 0.6rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding: 0.35rem 0 0;
-}
-
-.cut-rect {
-  display: block;
-  width: 100%;
-  height: 88px;
-  margin: 0.55rem 0 0.2rem;
-  object-fit: cover;
-  filter: grayscale(1);
-}
-
-.cut-square {
-  display: block;
-  width: 72%;
-  max-width: 140px;
-  aspect-ratio: 1;
-  margin: 0.25rem auto 0.5rem;
-  object-fit: cover;
-  filter: grayscale(1) contrast(1.08);
-}
-
 .soft-held {
   border: 1px solid var(--line-soft);
   padding: 0.65rem 0.7rem;

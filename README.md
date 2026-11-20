@@ -13,7 +13,7 @@ Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The des
 |---|---|
 | Feeds bury signal in chrome | Broadsheet front: nameplate, A1, columns |
 | “Pinning” is social theater | **Pay PLS** to `0x…feed` to hold the lead |
-| Media boards invite porn | **Text-only publish** + classic LOC plates on the face + soft mute |
+| Media boards invite porn | **Text-only publish** + soft mute on the face |
 | Yesterday disappears | **Daily editions** from bid timestamps (UTC) |
 
 ---
@@ -61,13 +61,12 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 
 ```
 src/           React desk (Library · Post · broadsheet)
-public/plates  Classic LOC public-domain cuts (face art only)
 public/themes  Theme packs (Press default)
 sim/           Anvil lab + dry-run + stress
 PROTOCOL.md    Operator one-pager
 ```
 
-Authors **cannot** publish images through this app. Plates are curated face art only — see `public/plates/CREDITS.txt`.
+Authors **cannot** publish images through this app — text face only.
 
 ---
 

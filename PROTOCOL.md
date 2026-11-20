@@ -38,7 +38,7 @@ Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`
 - Series: `replaces` chain collapses in Library (tip + older)  
 - Export/Import = shelf + catalog JSON backup  
 - `j` / `k` move cards, `Esc` clears reader  
-- Classic LOC plates on the face only — authors cannot publish images  
+- Text face only — authors cannot publish images  
 - Soft mute holds blunt lewd wording off the face until opened  
 - Tip presets use **Pulse** addresses (pHEX ≠ Ethereum HEX)
 

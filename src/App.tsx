@@ -49,7 +49,6 @@ import {
   listEditionDays,
   utcTodayKey,
 } from "./editions";
-import { plateFor } from "./plates";
 import { softMuteHit } from "./softMute";
 import { getCachedDoc, listCachedSummaries, putCachedDoc } from "./cache";
 import {
@@ -1612,33 +1611,19 @@ export function App() {
                           )}
                         </button>
                       </SoftHeld>
-                      <button
-                        type="button"
-                        className="hero-well"
-                        onClick={() => void load(press.lead!.entry.hash)}
-                      >
-                        <img
-                          className="hero-plate"
-                          src={plateFor(press.lead.entry.hash).src}
-                          alt=""
-                          loading="lazy"
-                        />
-                        <span className="hero-caption">
-                          {plateFor(press.lead.entry.hash).credit}
-                          {" · "}
-                          By {shortAddr(press.lead.entry.from)}
-                          {formatPostedAt(press.lead.entry.timeStamp)
-                            ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
-                            : ""}
-                          {frontWinner &&
-                          frontWinner.manifest.toLowerCase() ===
-                            press.lead.entry.hash.toLowerCase()
-                            ? ` · A1 ${formatPls(frontWinner.valueWei)} PLS`
-                            : ""}
-                          {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
-                          {" · Continued inside →"}
-                        </span>
-                      </button>
+                      <p className="a1-byline">
+                        By {shortAddr(press.lead.entry.from)}
+                        {formatPostedAt(press.lead.entry.timeStamp)
+                          ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
+                          : ""}
+                        {frontWinner &&
+                        frontWinner.manifest.toLowerCase() ===
+                          press.lead.entry.hash.toLowerCase()
+                          ? ` · A1 ${formatPls(frontWinner.valueWei)} PLS`
+                          : ""}
+                        {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
+                        {" · Continued inside →"}
+                      </p>
                     </>
                   )}
                   <hr className="single-rule" />
@@ -1671,12 +1656,6 @@ export function App() {
                               ) || 0}{" "}
                               likes
                             </span>
-                            <img
-                              className="cut-rect"
-                              src={plateFor(colLead.entry.hash, 1).src}
-                              alt=""
-                              loading="lazy"
-                            />
                           </button>
                         </SoftHeld>
                       ) : (
@@ -1752,12 +1731,6 @@ export function App() {
                             <span className="story-hed right-hed">
                               {colRight.entry.title}
                             </span>
-                            <img
-                              className="cut-square"
-                              src={plateFor(colRight.entry.hash, 2).src}
-                              alt=""
-                              loading="lazy"
-                            />
                             {colRight.entry.summary && (
                               <span className="story-dek">
                                 {colRight.entry.summary}
