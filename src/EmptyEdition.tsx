@@ -19,9 +19,9 @@ export function EmptyEdition({
       </p>
       {deskFace ? (
         <p className="empty-dek status bad" style={{ marginTop: "0.5rem" }}>
-          You’re on <strong>Desk · DEV ONLY</strong> (local sandbox). For the
-          real app: download the GitHub ZIP and double-click{" "}
-          <code>start-press.cmd</code> (or <code>npm run dev:press</code>).
+          You’re on <strong>Desk · DEV ONLY</strong> (local sandbox). Real app:
+          Releases → <code>hearts-archive-press.zip</code> →{" "}
+          <code>START.cmd</code> (no Node).
         </p>
       ) : null}
       <ol className="empty-steps">

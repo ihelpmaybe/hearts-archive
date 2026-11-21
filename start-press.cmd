@@ -5,12 +5,12 @@ cd /d "%~dp0"
 where node >nul 2>&1
 if errorlevel 1 (
   echo.
-  echo Node.js 20+ LTS is required for local Press ^(trusted updates^).
-  echo Opening the download page — install LTS, then double-click this file again.
+  echo This is the developer starter ^(needs Node^).
+  echo Users: get the Press ZIP — no Node — from
+  echo   https://github.com/ihelpmaybe/hearts-archive/releases/latest
+  echo Unzip and double-click START.cmd
   echo.
-  echo Demo peek only ^(not a locked install^): https://ihelpmaybe.github.io/hearts-archive/
-  echo.
-  start "" "https://nodejs.org/en/download"
+  start "" "https://github.com/ihelpmaybe/hearts-archive/releases/latest"
   pause
   exit /b 1
 )

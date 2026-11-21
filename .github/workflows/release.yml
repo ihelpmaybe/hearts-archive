@@ -1,0 +1,47 @@
+name: Release Press ZIP
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  press-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build Press (base /)
+        env:
+          VITE_ARCHIVE_FACE: press
+        run: npm run build
+      - name: Pack ZIP
+        run: node scripts/pack-press.mjs
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hearts-archive-press
+          path: out/hearts-archive-press.zip
+      - name: GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/hearts-archive-press.zip
+          generate_release_notes: true
+          body: |
+            ## Press (no Node)
+
+            1. Download **hearts-archive-press.zip**
+            2. Unzip
+            3. Double-click **START.cmd** (Windows) or run **./START.sh** (Mac/Linux)
+            4. Connect Pulse wallet → Write → Publish
+
+            This ZIP is a frozen build. It only changes when you download a newer release.
+            Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/

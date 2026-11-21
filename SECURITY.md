@@ -12,13 +12,16 @@ If you find a wallet, tip-address, or drain-risk bug:
 
 ## How to run it
 
-**Recommended:** **local Press** — ZIP + `start-press.cmd` / `.sh` (Node 20+ once). That build only changes when **you** download or pull again.
+**Recommended (users):** download the **[Press release ZIP](https://github.com/ihelpmaybe/hearts-archive/releases/latest)** → unzip → **`START.cmd`** / **`START.sh`**.  
+No Node. Serves a **frozen** build on `http://127.0.0.1:5177/`. It only changes when **you** download a newer release.
 
-**Demo preview** ([GitHub Pages](https://ihelpmaybe.github.io/hearts-archive/)): fine for reading. Prefer local before connecting a wallet with real funds.
+**Developers:** `npm run dev:press` or `npm run build && npm run pack:press`.
 
-### “Add to Home Screen” / Install (Pages)
+**Demo preview** ([GitHub Pages](https://ihelpmaybe.github.io/hearts-archive/)): fine for reading. Prefer the release ZIP before connecting a funded wallet.
 
-**Not a secure install path.** Without a pinned offline bundle, the icon still loads **whatever is currently on Pages** on each open. A bad or compromised deploy = new UI under the same icon (malicious-update risk). We do **not** ship a service worker that freezes the money UI on purpose — freezing stale JS has its own foot-guns; the honest answer is **run local Press** when trust matters.
+### “Add to Home Screen” on the live demo
+
+**Not a locked install.** The icon still loads **whatever is on Pages** each open (malicious-update risk). Use the release ZIP instead.
 
 ## What this app can spend
 

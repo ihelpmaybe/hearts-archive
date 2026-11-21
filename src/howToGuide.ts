@@ -16,7 +16,7 @@ import {
 import { LAB_FROM } from "./uiBits";
 import { sha256Hex } from "./protocol";
 
-const GUIDE_TAG = "hearts-archive-publish-howto-v3";
+const GUIDE_TAG = "hearts-archive-publish-howto-v4";
 
 /** Default type-cut for the empty-Open publish guide. */
 const ASCII_MARK = `
@@ -79,21 +79,19 @@ const ASCII_MARK = `
 function publishGuideBody(): string {
   return `NO STORY ON THIS PAPER YET — this is a local guide (not on-chain).
 
-DESK VS PRESS
-• Desk (npm run dev) = developer sandbox only. Fake posts. No wallet. DEV ONLY.
-• Press = the real app. Run it: ZIP → start-press.cmd (Windows) or ./start-press.sh
-• Repo: https://github.com/ihelpmaybe/hearts-archive
-• Demo peek: https://ihelpmaybe.github.io/hearts-archive/
+HOW TO RUN (no questions)
+1) Download Press ZIP: https://github.com/ihelpmaybe/hearts-archive/releases/latest
+2) Unzip → START.cmd (Windows) or ./START.sh (Mac/Linux)
+3) Browser opens local Press — connect Pulse wallet
+• Demo peek only: https://ihelpmaybe.github.io/hearts-archive/ (not a locked install)
+• Desk (npm run dev) = DEV sandbox only — not for real wallets
 
-HOW TO PUBLISH (Press)
-1) Open Write (phone: bottom tab · desk: top rail).
+HOW TO PUBLISH
+1) Write (phone: bottom tab).
 2) Title (max 72) · optional ASCII picture · body text.
 3) Optional: summary, tags, Telegram / X, tip wallet.
-4) Pick the Open edition day (tomorrow … up to +30 UTC days) — that is the paper you are filing into.
-5) Preview to see A1 / inside / full faces.
-6) Publish.
-   • Desk: stays local (test only).
-   • Press + wallet on Pulse: chunks + manifest go on-chain (gas; 0 PLS value on those txs).
+4) Pick the Open edition day (tomorrow … up to +30 UTC days).
+5) Publish (Press + Pulse wallet) — on-chain; gas only on those txs (0 PLS value).
 
 AFTER YOU PUBLISH
 • Your story is in the library. It is NOT automatically A1.

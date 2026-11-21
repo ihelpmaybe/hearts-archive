@@ -1,7 +1,7 @@
 {
   "name": "hearts-archive",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Heart’s Archive — on-chain newspaper for PulseChain (text stories + PLS A1 bids at 0x…feed)",
   "license": "UNLICENSED",
   "type": "module",
@@ -31,6 +31,7 @@
     "build:press": "tsc --noEmit && vite build",
     "build:desk": "tsc --noEmit && vite build --mode desk",
     "build:pages": "tsc --noEmit && vite build --base /hearts-archive/",
+    "pack:press": "node scripts/pack-press.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

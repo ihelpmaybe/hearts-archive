@@ -15,7 +15,7 @@ public/lab-seed.json
 *.sqlite
 *.sqlite-*
 .vite
-# forge (dry-run MockERC20)
+# forge (dry-run MockERC20) + pack:press
 cache/
 out/
 broadcast/

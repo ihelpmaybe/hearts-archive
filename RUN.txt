@@ -1,0 +1,13 @@
+Heart’s Archive — Press (this ZIP)
+
+1. Double-click START.cmd  (Windows)
+   or: chmod +x START.sh && ./START.sh  (Mac/Linux)
+2. Your browser opens http://127.0.0.1:5177/
+3. Connect a Pulse wallet → Write → Publish
+4. Open your story → Buy A1 if you want the front page (PLS)
+
+Leave the black/terminal window open while you use it.
+Close it to stop.
+
+No Node install. This copy only changes when YOU download a newer release.
+Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/
