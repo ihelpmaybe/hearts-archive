@@ -12,12 +12,13 @@ If you find a wallet, tip-address, or drain-risk bug:
 
 ## How to run it
 
-| Path | Who it’s for |
-|---|---|
-| **Phone / no Node** — open the [web app](https://ihelpmaybe.github.io/hearts-archive/) → **Add to Home Screen** | Everyday access, reading, small/burner wallets |
-| **Local Press** — ZIP + `start-press.cmd` / `.sh` (needs Node 20+ once) | You control when the UI updates — better for funded wallets |
+**Recommended:** **local Press** — ZIP + `start-press.cmd` / `.sh` (Node 20+ once). That build only changes when **you** download or pull again.
 
-The home-screen app is the same Press build as GitHub Pages (no separate App Store binary). A future Pages deploy can change that UI under you; local Press only changes when **you** update. There is **no** offline service worker caching the money UI on purpose.
+**Demo preview** ([GitHub Pages](https://ihelpmaybe.github.io/hearts-archive/)): fine for reading. Prefer local before connecting a wallet with real funds.
+
+### “Add to Home Screen” / Install (Pages)
+
+**Not a secure install path.** Without a pinned offline bundle, the icon still loads **whatever is currently on Pages** on each open. A bad or compromised deploy = new UI under the same icon (malicious-update risk). We do **not** ship a service worker that freezes the money UI on purpose — freezing stale JS has its own foot-guns; the honest answer is **run local Press** when trust matters.
 
 ## What this app can spend
 

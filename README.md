@@ -10,31 +10,26 @@ Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the le
 
 ```
                          HEARTS ARCHIVE
-                 phone app · or local Press
+                    local Press · on-chain ink
 ```
 
 ---
 
-## Run it
+## Run it (recommended)
 
-### Phone / no Node (easiest)
-
-1. Open **[the web app](https://ihelpmaybe.github.io/hearts-archive/)** in Safari or Chrome  
-2. **Add to Home Screen** / Install app  
-3. Launch from the icon — fullscreen paper, bottom **Paper · Search · Write · Sync**
-
-No Node. No ZIP. It’s a installable web app (PWA).  
-Burner / small wallet is fine here. Big bags: prefer local Press below so *you* control updates ([`SECURITY.md`](./SECURITY.md)).
-
-### Local Press (Windows / Mac / Linux)
+**Local Press** — you control when the UI updates. That’s the safe default for a wallet.
 
 | Want | Do this |
 |---|---|
 | **Windows** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → **`start-press.cmd`** (needs [Node 20+](https://nodejs.org/) once) |
 | **Mac / Linux** | Unzip/clone → `chmod +x start-press.sh && ./start-press.sh` |
-| **No Node yet** | Use the phone/web app above — or install Node, then the script |
+| **Peek only** | [Demo preview](https://ihelpmaybe.github.io/hearts-archive/) — reading / poke around |
 
 First local run installs deps once; Press opens at `http://127.0.0.1:5177/`. Leave that window open.
+
+### Why not “Add to Home Screen” on the demo?
+
+The live Pages site **re-downloads the app UI every time you open it**. A home-screen icon is just a shortcut — **not** a frozen install. Anyone who can ship a Pages deploy can change what that icon loads next (malicious-update risk). Don’t treat it as a locked-down mobile app. Details: [`SECURITY.md`](./SECURITY.md).
 
 Money paths, burns, and tip safety: **[`SECURITY.md`](./SECURITY.md)**.  
 Patches: **[`CONTRIBUTING.md`](./CONTRIBUTING.md)**.
