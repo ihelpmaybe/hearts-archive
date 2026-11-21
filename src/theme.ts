@@ -16,18 +16,13 @@ export type ThemeIndex = {
   packs: string[];
 };
 
-const STORAGE_KEY = "hearts-archive-theme";
 const FONT_LINK_ID = "ha-theme-fonts";
-
-const STORAGE_KEY_V2 = "hearts-archive-theme-v2";
+/** v3 — Venus (press) is the default; ignore older keys that stuck on Venus. */
+const STORAGE_KEY = "hearts-archive-theme-v3";
 
 export function getStoredThemeId(fallback = "press"): string {
   try {
-    return (
-      localStorage.getItem(STORAGE_KEY_V2) ||
-      localStorage.getItem(STORAGE_KEY) ||
-      fallback
-    );
+    return localStorage.getItem(STORAGE_KEY) || fallback;
   } catch {
     return fallback;
   }
@@ -35,7 +30,6 @@ export function getStoredThemeId(fallback = "press"): string {
 
 export function storeThemeId(id: string) {
   try {
-    localStorage.setItem(STORAGE_KEY_V2, id);
     localStorage.setItem(STORAGE_KEY, id);
   } catch {
     /* */
