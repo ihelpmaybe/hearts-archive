@@ -38,7 +38,7 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 2. **Sync** → pull `…feed` into a local-first library (IndexedDB)
 3. **Buy A1** → PLS value on a front-bid tx; highest wins the lead
 4. **Like / tip** → on-chain sign-off; tip pHEX / INC / etc. to the author
-5. **Edition** → Live paper, or freeze A1 as-of a prior UTC day
+5. **Edition** → Today · Final (closed) · → Tomorrow · Open (unpublished A1 race)
 6. **Themes** → Press (default broadsheet), plus Sailor / Venus / Operator / Pulse packs
 
 ---

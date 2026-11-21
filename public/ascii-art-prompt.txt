@@ -1,0 +1,277 @@
+# UNIVERSAL ASCII ART MASTER PROMPT
+
+You are an expert ASCII artist, visual analyst, and monospace typography designer.
+
+Convert the attached image into the **highest-quality monochrome ASCII art possible using only text characters**.
+
+Your objective is not to mechanically convert pixels into symbols. Your objective is to reconstruct the image so that a human immediately recognizes the original subject when viewing the result in a monospace font.
+
+**Priority order:**
+
+1. Instant subject recognition
+2. Accurate silhouette, composition, and proportions
+3. Readable text, logos, and distinctive features
+4. Strong contrast and effective negative space
+5. Clean outlines and convincing dimensionality
+6. Tonal variation, texture, and fine details
+
+Sacrifice minor details whenever doing so improves overall recognition.
+
+---
+
+## 1. ANALYZE THE IMAGE
+
+Before drawing, internally determine:
+
+- The primary subject and its most recognizable features.
+- The overall composition and major spatial relationships.
+- The silhouette, boundaries, and negative spaces.
+- Important text, symbols, faces, objects, and landmarks.
+- Which regions require sharp edges versus tonal shading.
+- Which details are essential and which can be omitted.
+- Whether the original image is primarily graphic, photographic, typographic, or illustrative.
+
+Think like an artist reconstructing the image from basic shapes, not an algorithm replacing pixels.
+
+## 2. CHOOSE THE BEST RENDERING STRATEGY
+
+Evaluate these six strategies and select the most appropriate one, or combine multiple approaches.
+
+**STRATEGY A — Silhouette-First**
+
+Best for animals, vehicles, people, icons, and recognizable objects.
+
+- Establish the complete outer contour first.
+- Preserve distinctive proportions and geometry.
+- Use strong foreground/background separation.
+- Add internal features only after the silhouette is recognizable.
+- Avoid textures that interfere with the outline.
+
+**STRATEGY B — Structural Line Art**
+
+Best for architecture, mechanical objects, diagrams, and geometric illustrations.
+
+- Construct edges using `/ \ | - _ = + < > ( ) [ ]`.
+- Preserve straight lines, intersections, and perspective.
+- Maintain alignment and symmetry where present.
+- Use minimal shading when precise structure matters more.
+
+**STRATEGY C — Tonal Shading**
+
+Best for photographs, portraits, landscapes, and realistic subjects.
+
+- Divide the image into a small number of meaningful tonal regions.
+- Use progressively denser characters for stronger visual weight.
+- Preserve important highlights, shadows, and depth.
+- Apply texture selectively rather than uniformly.
+- Simplify small-scale image noise.
+
+**STRATEGY D — Typography Reconstruction**
+
+Best for logos, lettering, title cards, and text-heavy images.
+
+- Treat text as primary image geometry.
+- Reconstruct each important letter as a recognizable ASCII shape.
+- Preserve exact spelling, word order, capitalization, and approximate layout.
+- Use block-character constructions when they improve lettering.
+- Maintain consistent stroke weight, spacing, and alignment.
+- Never replace readable text with arbitrary decorative patterns.
+- Prioritize legibility over gradients and background detail.
+
+**STRATEGY E — Negative-Space Carving**
+
+Best for high-contrast images, emblems, symbols, and minimalist designs.
+
+- Start with the large positive and negative shapes.
+- Use carefully placed spaces to carve out interior forms.
+- Preserve holes, gaps, separations, and distinctive cutouts.
+- Do not fill dark or empty backgrounds with unnecessary noise.
+- Prefer a clean, bold result to an overworked reconstruction.
+
+**STRATEGY F — Hybrid Reconstruction**
+
+Best for complex images combining text, objects, and backgrounds.
+
+- Use structural outlines for hard boundaries.
+- Use silhouette techniques for dominant shapes.
+- Use custom block lettering for important text.
+- Use tonal characters for dimensionality.
+- Use negative space to separate overlapping elements.
+- Apply each strategy only where it improves the image.
+
+**Important:** Do not use one strategy indiscriminately across the entire image. Different image regions may require different rendering techniques.
+
+## 3. CHOOSE THE GRID AND CORRECT THE ASPECT RATIO
+
+Choose a resolution that preserves important detail without making the artwork unnecessarily large.
+
+Default width: **100–140 columns**.
+
+Suggested ranges:
+
+- Simple icon: 60–90 columns.
+- Logo or graphic: 100–140 columns.
+- Portrait or detailed object: 100–160 columns.
+- Complex scene: 120–180 columns, if necessary.
+
+Account for the fact that monospace characters are normally taller than they are wide.
+
+Estimate the row count using:
+
+`rows ≈ (image height / image width) × columns × 0.50`
+
+Adjust the factor within approximately `0.45–0.55` based on the display and resulting silhouette.
+
+The output must not appear vertically stretched or horizontally compressed.
+
+Every row must contain exactly the same number of character positions, including trailing spaces where necessary.
+
+Use spaces, never tabs, for alignment.
+
+## 4. CHARACTER PALETTE
+
+Use ordinary printable ASCII characters.
+
+**Structural edges:**
+
+`/ \ | - _ = + < > ( ) [ ]`
+
+**Fine texture and subtle shading:**
+
+```
+. , ' ` : ; ~ "
+```
+
+**Medium density:**
+
+`* o a e u n s x z c v`
+
+**Heavy density:**
+
+`# % & 8 B M W @ $`
+
+You may use additional standard ASCII characters when they materially improve the result.
+
+Choose characters based on both visual density and geometric shape.
+
+For example:
+
+- `/` and `\` for diagonals.
+- `|` for vertical boundaries.
+- `_` and `-` for horizontal boundaries.
+- `(` and `)` for curves.
+- `@`, `M`, and `#` for dense shapes.
+- Spaces for negative space and visual separation.
+
+Do not blindly map every pixel to brightness. Instead, choose contrast according to the subject and its background.
+
+A solid black background may be represented by empty space when this produces a clearer silhouette.
+
+## 5. CONSTRUCT THE ART IN FIVE PASSES
+
+Perform these passes internally before displaying any output.
+
+**PASS 1 — Composition**
+
+Block out the overall subject, scale, position, and major negative spaces.
+
+**PASS 2 — Silhouette**
+
+Refine outer contours and major internal divisions. Verify that the subject is recognizable without shading.
+
+**PASS 3 — Defining Features**
+
+Reconstruct critical visual features.
+
+Examples:
+
+- Portraits: eyes, hair outline, nose, mouth, face shape.
+- Animals: ears, muzzle, legs, tail, posture.
+- Vehicles: body profile, wheels, windows, recognizable design.
+- Buildings: roofs, windows, structural proportions.
+- Logos: exact lettering, graphic symbols, outlines.
+- Landscapes: horizon, terrain, silhouettes, depth.
+
+**PASS 4 — Tone and Texture**
+
+Apply selective shading, surface detail, and highlights without compromising the previous passes.
+
+**PASS 5 — Cleanup**
+
+Correct broken outlines, distorted proportions, illegible letters, misaligned structures, inconsistent shading, and stray characters.
+
+Remove details that create visual noise.
+
+## 6. MULTIPLE-CANDIDATE OPTIMIZATION
+
+Before finalizing, internally consider at least three different renderings:
+
+1. A clean, high-contrast, silhouette-focused version.
+2. A detailed version emphasizing texture and shading.
+3. A hybrid version emphasizing recognizability and structural accuracy.
+
+Compare them against the original image.
+
+Select the strongest approach, or combine their best features into one final reconstruction.
+
+Evaluate the final candidate using:
+
+- Recognition: 40%
+- Geometry and proportions: 20%
+- Important details and lettering: 20%
+- Contrast and clarity: 15%
+- Texture and polish: 5%
+
+These weights are guidelines, not rigid rules. For text-heavy logos, increase the importance of lettering.
+
+If a simpler construction looks more recognizable, use the simpler construction.
+
+## 7. STRICT QUALITY CONTROL
+
+Before outputting, internally verify:
+
+- The main subject is immediately recognizable.
+- The silhouette resembles the original.
+- Major shapes are correctly positioned.
+- Text is accurate and readable whenever feasible.
+- No essential visual elements are missing.
+- All lines have identical width.
+- The aspect ratio is appropriate.
+- Borders, diagonals, and curves are continuous.
+- Background areas are clean.
+- Shading does not overwhelm the subject.
+- The artwork looks coherent in Courier or Consolas.
+- No Unicode block characters, emoji, or ANSI color codes are used.
+
+If recognition is poor, revise the geometry rather than adding random detail.
+
+If text is illegible, rebuild the lettering instead of attempting more shading.
+
+If the composition feels crowded, reduce unnecessary texture.
+
+## 8. FINAL OUTPUT RULES
+
+Output **only the completed ASCII character grid**.
+
+Do not include:
+
+- Explanations or commentary.
+- Titles or captions.
+- Markdown code fences.
+- Strategy descriptions.
+- Progress updates.
+- Alternative versions.
+- Empty decorative borders.
+- Random background noise.
+
+Do not output your internal analysis.
+
+Produce exactly one final, optimized rendering.
+
+**FINAL DIRECTIVE:**
+
+Approach this as a professional monochrome illustration challenge, not a basic image-to-text conversion. Reconstruct the original image through deliberate geometry, carefully selected characters, readable typography, balanced contrast, and controlled negative space.
+
+The final result should be recognizable at a glance and as visually faithful as the limitations of ASCII allow.
+
+**Now analyze the attached image, choose the strongest rendering strategy, internally refine multiple candidates, and output only your best final ASCII artwork.**

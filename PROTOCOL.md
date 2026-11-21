@@ -7,9 +7,9 @@ On-chain broadsheet for PulseChain. Write text to `0x…feed`, chunks to `0x0`. 
 1. **Connect** wallet on Pulse (top bar). Need a little PLS for gas.
 2. **Post** → write text → **Publish**. When it lands you see **You’re live** → Open in reader.
 3. **Front page** paints from local cache. Hit **Sync** when you want new posts from `…feed`.
-4. **Like** = on-chain sign-off. **Tip** = send PLS / pHEX / INC / etc. to the author (not a like).
-5. **Buy A1** = PLS front-bid to `…feed`. Highest bid owns the lead until outbid.
-6. **Edition** = Live, or a prior UTC day frozen from bid timestamps.
+4. **Like** = burn **≥1 PLS** to `…feed` with like JSON. Extra PLS still = **one** like per wallet. **Tip** = send the writer anything on Pulse — not a like.
+5. **Publish + A1 + gas = PLS only.** Front-bid is native PLS to `…feed` with optional `forDay` (printed YYYY-MM-DD). You may bid higher anytime before that day’s UTC midnight — each bid is a new PLS tx; highest wins. Not a top-up of the old tx.
+6. **Edition** = **≤ today · Final** (locked) and **Open** = tomorrow through **+30 UTC days**. Sync lookback = **60d** (2× schedule): post today for +30d, return on day 59, still catch it. Publish tx is at today’s height, not the paper day. Legacy bids without `forDay` = bid calendar day + 1.
 
 Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`.
 
@@ -21,7 +21,7 @@ Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`
 | Archive inbox | `0x0000…feed` |
 | Cap | 150 KB original text |
 | Write mime | text only |
-| Discovery | Sync `…feed` (incremental) |
+| Discovery | Sync since last visit, capped at 60d / 2× schedule (one tip stream; stop on known / age) |
 | Share | `#/369/0x…` (hash ≠ browse; Front page clears it) |
 
 ## Wire (short)
@@ -29,7 +29,7 @@ Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`
 1. Optional gzip → split ≤20 KiB parts  
 2. Each part → tx to **zero**, calldata = raw bytes (legacy Raven JSON+base64 still readable)  
 3. Manifest JSON → tx to **`…feed`** listing chunk hashes (+ title/tags/`replaces`/sha256)  
-4. Like → JSON `{ kind: "pulse-archive-like", manifest }` to `…feed`
+4. Like → JSON `{ kind: "pulse-archive-like", manifest }` to `…feed` **with ≥1 PLS `value`** (more PLS ≠ more likes)
 
 ## Client habits
 
@@ -53,11 +53,13 @@ npm run dev        # :5177
 
 ## Likes payload
 
+JSON calldata → `…feed` **with ≥1 PLS `value`**:
+
 ```json
 { "kind": "pulse-archive-like", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.6.0" }
 ```
 
-Count unique `(manifest, from)`.
+Count unique `(manifest, from)`. Txs under 1 PLS are ignored. Paying 5 PLS still counts as one like.
 
 ## Front-page bid
 
@@ -67,7 +69,7 @@ JSON calldata → `…feed` **with PLS `value`**:
 { "kind": "pulse-archive-front", "manifest": "0x…64", "app": "pulse-archive", "appVersion": "0.6.0" }
 ```
 
-Highest `value` wins the lead headline. Outbid to take #1. (Token / “own coin” rails can layer later — PLS first.)
+Highest `value` for that `forDay` wins that paper’s A1. Outbid before that day’s UTC midnight. Schedule ≤ **+30d**; Sync walks ≤ **60d** so a long absence still sees max-horizon posts. Legacy bids with no `forDay` target bid-day + 1.
 
 ## Chunk eras
 

@@ -22,7 +22,15 @@ import {
 } from "viem";
 import { WalletBar } from "./WalletBar";
 import { ThemePicker } from "./ThemePicker";
-import { TypeCutTool } from "./TypeCutTool";
+import { TypeCutPicture } from "./TypeCutPicture";
+import { copyAsciiArtPrompt } from "./asciiArtPrompt";
+import {
+  displayHandle,
+  telegramUrl,
+  twitterUrl,
+} from "./authorContact";
+import { normalizeTypeCut } from "./typeCut";
+import { packArticle, unpackArticle } from "./articleFormat";
 import { loadAndApplyTheme } from "./theme";
 import {
   CUSTOM_TIP_ID,
@@ -36,6 +44,7 @@ import {
   dedupeBySha256,
   dedupeFrontBids,
   dedupeLikes,
+  frontBidPrintedDay,
   hasLiked,
   listArchiveFromAuthor,
   listSinkBundle,
@@ -43,12 +52,27 @@ import {
   type FrontBidEntry,
   type LikeEntry,
 } from "./archive";
-import { formatPls } from "./frontPage";
 import {
-  formatEditionLabel,
+  formatFrontPriceHint,
+  formatPls,
+  frontBidStats,
+} from "./frontPage";
+import {
+  bidsForPrintedDay,
+  editionCursor,
+  isOpenEdition,
+  isOpenPrintedDay,
   layoutEdition,
   listEditionDays,
+  maxOpenEditionDay,
+  openEditionBids,
+  OPEN_HORIZON_DAYS,
+  SYNC_LOOKBACK_DAYS,
+  shiftUtcDay,
+  syncLookbackCutoffUnix,
+  utcDayKey,
   utcTodayKey,
+  type EditionView,
 } from "./editions";
 import { softMuteHit } from "./softMute";
 import { getCachedDoc, listCachedSummaries, putCachedDoc } from "./cache";
@@ -95,11 +119,37 @@ import {
   MAX_PUBLISH_BYTES,
   sendFrontBid,
   sendLike,
+  sha256Hex,
   type ChunkProgress,
   type DocType,
   type PreparedPublish,
 } from "./protocol";
-import { listShelf, mergeShelfAndRemote, pinToShelf } from "./shelf";
+import { loadLocalFronts, saveLocalFronts } from "./frontsLocal";
+import {
+  listShelf,
+  mergeShelfAndRemote,
+  pinToShelf,
+  unpinFromShelf,
+} from "./shelf";
+
+/** Retired lab series demo — purge leftover A1 / shelf pins. */
+const RETIRED_LAB_SERIES = new Set([
+  "0xbd0ad0de73324bb9c0f6815921b0862dfce5a631d4f1318b7709ed2736bb7c1d",
+  "0x3a7d71e392474a52d10077191a324d2c88bcefc399dfdf681fb73d92ecbe22da",
+  "0x6c4264d478d900cf7ac4b30e48afb45ab7d511c50cd2427c2e3e9a476bf2f549",
+]);
+
+/** Old labSeed synthetic A1 tx hashes (eee… / fff…). */
+const RETIRED_FAKE_FRONT_TX = new Set([
+  "0x" + "e".repeat(64),
+  "0x" + "f".repeat(64),
+]);
+
+function isRetiredFront(b: FrontBidEntry): boolean {
+  const m = b.manifest.toLowerCase();
+  const h = b.hash.toLowerCase();
+  return RETIRED_LAB_SERIES.has(m) || RETIRED_FAKE_FRONT_TX.has(h);
+}
 import {
   applyLocalBackup,
   buildLocalBackup,
@@ -107,6 +157,11 @@ import {
 } from "./shelfBackup";
 import { collapseSeriesCards } from "./series";
 import { offlineOpenHint } from "./offlineOpen";
+import {
+  LANG_OPTIONS,
+  LICENSE_OPTIONS,
+  withCurrentOption,
+} from "./metaOptions";
 
 type LoadedDoc = {
   mimeType: string;
@@ -119,6 +174,10 @@ type LoadedDoc = {
   encoding?: string;
   replaces?: string;
   cw?: boolean;
+  telegram?: string;
+  twitter?: string;
+  tipPrefs?: string;
+  tipWallet?: string;
   objectUrl: string;
   size: number;
   chunkCount: number;
@@ -127,8 +186,21 @@ type LoadedDoc = {
   postedAt?: number;
 };
 
+/** Local Preview face only — never lands on the front page. */
+const PREVIEW_FROM = "0xpreview00000000000000000000000000000001";
+/** Dev / Lab publish — local shelf only, not Pulse. */
+const LAB_FROM = "0xlab000000000000000000000000000000000001";
+
 function shortAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function isLocalPreviewDoc(from?: string) {
+  return (from || "").toLowerCase() === PREVIEW_FROM;
+}
+
+function isLabTestDoc(from?: string) {
+  return (from || "").toLowerCase() === LAB_FROM;
 }
 
 function formatPostedAt(unixSec?: number): string {
@@ -200,10 +272,19 @@ function TextPreview({ url, title }: { url: string; title?: string }) {
       cancelled = true;
     };
   }, [url]);
-  const hit = softMuteHit(title, text === "Loading…" ? "" : text);
+  const loading = text === "Loading…";
+  const parts = loading ? { picture: "", body: text } : unpackArticle(text);
+  const hit = softMuteHit(title, parts.picture, parts.body);
   return (
     <SoftHeld hit={hit} label="Read anyway">
-      <pre>{text}</pre>
+      <div className="article-stack">
+        {parts.picture.trim() ? (
+          <TypeCutPicture text={parts.picture} className="article-picture" />
+        ) : null}
+        {parts.body.trim() || !parts.picture.trim() ? (
+          <pre className="article-body">{parts.body || (loading ? text : "")}</pre>
+        ) : null}
+      </div>
     </SoftHeld>
   );
 }
@@ -226,13 +307,17 @@ export function App() {
   const [hashInput, setHashInput] = useState("");
   const [authorInput, setAuthorInput] = useState("");
   const [bodyText, setBodyText] = useState("");
+  const [pictureText, setPictureText] = useState("");
+  const [asciiPromptMsg, setAsciiPromptMsg] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
-  const [note, setNote] = useState("");
   const [summary, setSummary] = useState("");
   const [lang, setLang] = useState("");
   const [license, setLicense] = useState("");
   const [replaces, setReplaces] = useState("");
+  const [telegram, setTelegram] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [tipWallet, setTipWallet] = useState("");
   const [prepared, setPrepared] = useState<PreparedPublish | null>(null);
   const [gasHint, setGasHint] = useState<string | null>(null);
   const [costWei, setCostWei] = useState<bigint | null>(null);
@@ -263,7 +348,9 @@ export function App() {
   const [citeMsg, setCiteMsg] = useState<string | null>(null);
   const [, setLoadSource] = useState<string | null>(null);
   const [likes, setLikes] = useState<LikeEntry[]>([]);
-  const [fronts, setFronts] = useState<FrontBidEntry[]>([]);
+  const [fronts, setFronts] = useState<FrontBidEntry[]>(() =>
+    loadLocalFronts().filter((b) => !isRetiredFront(b)),
+  );
   const [liking, setLiking] = useState(false);
   const [likeError, setLikeError] = useState<string | null>(null);
   const [frontAmount, setFrontAmount] = useState("10");
@@ -279,6 +366,8 @@ export function App() {
   const [likesRefreshing, setLikesRefreshing] = useState(false);
   const [backupMsg, setBackupMsg] = useState<string | null>(null);
   const [likeOk, setLikeOk] = useState<string | null>(null);
+  /** Write: edit form vs local article preview (not the archive reader). */
+  const [writeMode, setWriteMode] = useState<"compose" | "preview">("compose");
   const [tab, setTab] = useState<"library" | "post">(() => {
     try {
       const t = sessionStorage.getItem("hearts-archive-tab");
@@ -288,7 +377,15 @@ export function App() {
     }
     return "library";
   });
-  const [editionDay, setEditionDay] = useState<"live" | string>("live");
+  /** Default = tomorrow’s Open (where new A1 bids land). ← for today’s Final. */
+  const [editionDay, setEditionDay] = useState<EditionView>(() =>
+    shiftUtcDay(utcTodayKey(), 1),
+  );
+  /** Which open printed day A1 / test-publish claims (default tomorrow). */
+  const [bidForDay, setBidForDay] = useState(() =>
+    shiftUtcDay(utcTodayKey(), 1),
+  );
+  const [leadPicture, setLeadPicture] = useState("");
 
   useEffect(() => {
     try {
@@ -305,11 +402,26 @@ export function App() {
   >([]);
 
   const wrongChain = isConnected && chainId !== pulsechain.id;
+  /** Dev / Lab: no wallet chrome — Preview + Lab cover testing without a wallet. */
+  const walletUiOff = labOn || import.meta.env.DEV;
   const entriesRef = useRef(entries);
   const openHashRef = useRef<string | null>(null);
   const loadRef = useRef<(h: Hash, opts?: { goRead?: boolean }) => Promise<void>>(
     async () => {},
   );
+
+  /** Leave the interior reader — Front page / Esc / cleared deep-link. */
+  const closeReader = useCallback(() => {
+    setDoc((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+      return null;
+    });
+    openHashRef.current = null;
+    setReading(false);
+    setReadError(null);
+    setLoadSource(null);
+    clearDocRoute();
+  }, []);
 
   useEffect(() => {
     entriesRef.current = entries;
@@ -328,45 +440,71 @@ export function App() {
     });
   }, []);
 
+  /** Autosave only after hydrate re-render — empty first paint must not wipe title. */
+  const [draftHydrated, setDraftHydrated] = useState(false);
+
   useEffect(() => {
     const stuck = loadIncomplete();
     if (stuck) {
       setIncomplete(stuck);
       setTitle(stuck.title);
       setTagsRaw(stuck.tagsRaw);
-      setNote(stuck.note);
       setSummary(stuck.summary);
       setLang(stuck.lang);
       setLicense(stuck.license);
       setReplaces(stuck.replaces);
       setChunks(stuck.progress);
+      setDraftHydrated(true);
       return;
     }
     const d = loadDraft();
-    if (!d) return;
-    setTitle(d.title);
-    setTagsRaw(d.tagsRaw);
-    setNote(d.note);
-    setSummary(d.summary);
-    setLang(d.lang);
-    setLicense(d.license);
-    setReplaces(d.replaces);
-    if (d.bodyText) setBodyText(d.bodyText);
+    if (d) {
+      setTitle(d.title || "");
+      setTagsRaw(d.tagsRaw || "");
+      setSummary(d.summary || "");
+      setLang(d.lang || "");
+      setLicense(d.license || "");
+      setReplaces(d.replaces || "");
+      setTelegram(d.telegram || "");
+      setTwitter(d.twitter || "");
+      setTipWallet(d.tipWallet || "");
+      if (d.bodyText) setBodyText(d.bodyText);
+      if (d.pictureText) setPictureText(d.pictureText);
+    }
+    setDraftHydrated(true);
   }, []);
 
   useEffect(() => {
+    if (!draftHydrated) return;
     saveDraft({
       title,
       tagsRaw,
-      note,
+      note: "",
       summary,
       lang,
       license,
       replaces,
       cw: false,
       bodyText,
+      pictureText,
+      telegram,
+      twitter,
+      tipWallet,
     });
-  }, [title, tagsRaw, note, summary, lang, license, replaces, bodyText]);
+  }, [
+    draftHydrated,
+    title,
+    tagsRaw,
+    summary,
+    lang,
+    license,
+    replaces,
+    bodyText,
+    pictureText,
+    telegram,
+    twitter,
+    tipWallet,
+  ]);
 
   const applyLoaded = useCallback(
     (opts: {
@@ -381,12 +519,22 @@ export function App() {
       encoding?: string;
       replaces?: string;
       cw?: boolean;
+      telegram?: string;
+      twitter?: string;
+      tipPrefs?: string;
+      tipWallet?: string;
       bytes: Uint8Array;
       chunkCount: number;
       from?: string;
       postedAt?: number;
       source: string;
     }) => {
+      // Old local-preview shelf fakes — not real articles
+      if (isLocalPreviewDoc(opts.from)) {
+        setDoc(null);
+        clearDocRoute();
+        return;
+      }
       const {
         manifestHash,
         mimeType,
@@ -426,6 +574,10 @@ export function App() {
           encoding: opts.encoding,
           replaces: opts.replaces,
           cw: opts.cw,
+          telegram: opts.telegram,
+          twitter: opts.twitter,
+          tipPrefs: opts.tipPrefs,
+          tipWallet: opts.tipWallet,
           objectUrl: makeObjectUrl(bytes, mimeType),
           size: bytes.length,
           chunkCount,
@@ -436,8 +588,9 @@ export function App() {
       });
       setLoadSource(source);
       const path = sharePath(manifestHash);
+      // push so browser ← can leave the article (hashchange clears reader)
       if (window.location.hash !== path) {
-        window.history.replaceState(null, "", path);
+        window.history.pushState(null, "", path);
       }
       setHashInput(manifestHash);
       setEntries((prev) => {
@@ -479,6 +632,10 @@ export function App() {
             encoding: cached.encoding,
             replaces: cached.replaces,
             cw: cached.cw,
+            telegram: cached.telegram,
+            twitter: cached.twitter,
+            tipPrefs: cached.tipPrefs,
+            tipWallet: cached.tipWallet,
             bytes: new Uint8Array(cached.bytes),
             chunkCount: cached.chunkCount,
             from: cached.from,
@@ -525,6 +682,10 @@ export function App() {
           encoding: meta.encoding,
           replaces: meta.replaces,
           cw: meta.cw,
+          telegram: meta.telegram,
+          twitter: meta.twitter,
+          tipPrefs: meta.tipPrefs,
+          tipWallet: meta.tipWallet,
           from,
           postedAt: postedAt || undefined,
           chunkCount: meta.chunkHashes.length,
@@ -546,6 +707,10 @@ export function App() {
           encoding: meta.encoding,
           replaces: meta.replaces,
           cw: meta.cw,
+          telegram: meta.telegram,
+          twitter: meta.twitter,
+          tipPrefs: meta.tipPrefs,
+          tipWallet: meta.tipWallet,
           bytes,
           chunkCount: meta.chunkHashes.length,
           from,
@@ -604,8 +769,20 @@ export function App() {
     }
   }, [refreshRecentLocal]);
 
-  /** Pull …feed (and likes) from chain → merge into local catalog. */
+  /** Pull …feed since last Sync (capped at 30d). Explorer only — no story bodies. */
   const refreshLibrary = useCallback(async () => {
+    let lastSyncMs = 0;
+    try {
+      lastSyncMs = Number(
+        localStorage.getItem("hearts-archive-last-sync") || "0",
+      );
+      if (lastSyncMs && Date.now() - lastSyncMs < 20_000) {
+        setBrowseError("Sync cooling down — try again in a few seconds.");
+        return;
+      }
+    } catch {
+      /* */
+    }
     setBrowsing(true);
     setBrowseError(null);
     const shelf = listShelf();
@@ -623,17 +800,35 @@ export function App() {
     try {
       const author = authorInput.trim();
       const knownHashes = new Set(base.map((e) => e.hash.toLowerCase()));
+      for (const l of likes) knownHashes.add(l.hash.toLowerCase());
+      for (const f of fronts) knownHashes.add(f.hash.toLowerCase());
+
+      // Gone 29d → walk ~29d. Cap = 60d (2× schedule) so +30d posts survive a long absence.
+      // Daily user → tip only (known streak stops early). One stream, not per-day calls.
+      const cutoff = syncLookbackCutoffUnix({ lastSyncMs: lastSyncMs || null });
+      const gapSec = Math.max(0, Math.floor(Date.now() / 1000) - cutoff);
+      const gapDays = Math.min(
+        SYNC_LOOKBACK_DAYS,
+        Math.max(1, Math.ceil(gapSec / 86400)),
+      );
+      const maxItems = Math.min(800, Math.max(100, gapDays * 25));
+      const maxPages = Math.min(20, Math.max(4, Math.ceil(maxItems / 50)));
+
       if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
         const remote = await listArchiveFromAuthor(author as `0x${string}`, {
-          maxItems: 500,
+          maxItems,
+          maxPages,
           knownHashes,
+          stopOlderThanUnix: cutoff,
         });
         await upsertCatalog(remote);
         setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
         const bundle = await listSinkBundle({
           onlyArchiveKind: false,
-          maxItems: 500,
+          maxItems,
+          maxPages,
           knownHashes,
+          stopOlderThanUnix: cutoff,
         });
         setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
         setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
@@ -641,8 +836,10 @@ export function App() {
       } else {
         const bundle = await listSinkBundle({
           onlyArchiveKind: archiveOnly,
-          maxItems: 500,
+          maxItems,
+          maxPages,
           knownHashes,
+          stopOlderThanUnix: cutoff,
         });
         await upsertCatalog(bundle.entries);
         setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
@@ -677,7 +874,7 @@ export function App() {
       setBrowsing(false);
       void refreshRecentLocal();
     }
-  }, [authorInput, archiveOnly, refreshRecentLocal]);
+  }, [authorInput, archiveOnly, refreshRecentLocal, likes, fronts]);
 
   useEffect(() => {
     const fromRoute = parseRouteHash(window.location.hash);
@@ -690,10 +887,24 @@ export function App() {
       if (h) {
         setHashInput(h);
         void loadRef.current(h);
+        return;
       }
+      // Browser ← / cleared # — drop the reader (was a no-op before)
+      setDoc((prev) => {
+        if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl);
+        return null;
+      });
+      openHashRef.current = null;
+      setReading(false);
+      setReadError(null);
+      setLoadSource(null);
     };
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    window.addEventListener("popstate", onHash);
+    return () => {
+      window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("popstate", onHash);
+    };
   }, []);
 
   useEffect(() => {
@@ -702,12 +913,70 @@ export function App() {
     });
   }, []);
 
+  // Persist A1 bids (local test + synced) so sole bidder keeps the lead after refresh
+  useEffect(() => {
+    saveLocalFronts(fronts);
+  }, [fronts]);
+
+  // Keep Open date fresh across UTC midnight
+  useEffect(() => {
+    if (!isOpenPrintedDay(bidForDay)) {
+      setBidForDay(shiftUtcDay(utcTodayKey(), 1));
+    }
+  }, [bidForDay]);
+
+  // If Open has your local-test story but no A1 bid, claim the lead (sole publisher)
+  useEffect(() => {
+    if (!isOpenEdition(editionDay)) return;
+    const printed = editionCursor(editionDay);
+    if (bidsForPrintedDay(fronts, printed).length > 0) return;
+    const fileDay = shiftUtcDay(printed, -1);
+    const mine = entries.filter(
+      (e) =>
+        (e.from || "").toLowerCase() === LAB_FROM &&
+        utcDayKey(e.timeStamp) === fileDay,
+    );
+    if (!mine.length) return;
+    // Newest local-test story gets floor A1 so Open isn’t “unpublished”
+    const story = [...mine].sort(
+      (a, b) => (b.timeStamp || 0) - (a.timeStamp || 0),
+    )[0]!;
+    const now = Math.floor(Date.now() / 1000);
+    setFronts((prev) => {
+      if (bidsForPrintedDay(prev, printed).length > 0) return prev;
+      return dedupeFrontBids([
+        {
+          hash: (story.hash.slice(0, 65) + "b") as Hash,
+          from: LAB_FROM,
+          timeStamp: now,
+          manifest: story.hash,
+          valueWei: 25n * 10n ** 18n,
+          forDay: printed,
+        },
+        ...prev,
+      ]);
+    });
+  }, [editionDay, entries, fronts]);
+
   useEffect(() => {
     void (async () => {
       const cachedLikes = await listCachedLikes();
       if (cachedLikes.length) {
         setLikes((prev) => dedupeLikes([...cachedLikes, ...prev]));
       }
+      // Drop retired series demo from local shelf / fronts
+      for (const h of RETIRED_LAB_SERIES) {
+        try {
+          unpinFromShelf(h as Hash);
+        } catch {
+          /* */
+        }
+      }
+      setFronts((prev) =>
+        dedupeFrontBids(
+          [...loadLocalFronts(), ...prev].filter((b) => !isRetiredFront(b)),
+        ),
+      );
       let seeded = false;
       if (isLabMode()) {
         const seed = await loadLabSeed();
@@ -715,7 +984,14 @@ export function App() {
           seeded = true;
           setLabNote(seed.meta.note);
           setLikes((prev) => dedupeLikes([...seed.likes, ...prev]));
-          setFronts((prev) => dedupeFrontBids([...seed.fronts, ...prev]));
+          // Don’t let Lab seed steal A1 on a day you already bid
+          setFronts((prev) => {
+            const claimed = new Set(prev.map((b) => frontBidPrintedDay(b)));
+            const extra = seed.fronts.filter(
+              (f) => !claimed.has(frontBidPrintedDay(f)),
+            );
+            return dedupeFrontBids([...prev, ...extra]);
+          });
           setEntries((prev) =>
             dedupeBySha256(mergeShelfAndRemote(seed.entries, prev)),
           );
@@ -733,12 +1009,12 @@ export function App() {
   }, []);
 
   const publishSource = useMemo(() => {
-    const text = bodyText.trim();
-    if (!text) return null;
+    const packed = packArticle(pictureText, bodyText);
+    if (!packed.trim() || packed === " ") return null;
     const name =
       (title.trim() || "note").replace(/[^\w.-]+/g, "_").slice(0, 48) + ".txt";
-    return new File([text], name, { type: "text/plain;charset=utf-8" });
-  }, [bodyText, title]);
+    return new File([packed], name, { type: "text/plain;charset=utf-8" });
+  }, [bodyText, pictureText, title]);
 
   useEffect(() => {
     let cancelled = false;
@@ -759,11 +1035,13 @@ export function App() {
           meta: {
             title,
             tags: parseTags(tagsRaw),
-            note,
             summary,
             lang,
             license,
             replaces,
+            telegram,
+            twitter,
+            tipWallet,
           },
         });
         if (!cancelled) {
@@ -784,7 +1062,18 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [publishSource, title, tagsRaw, note, summary, lang, license, replaces]);
+  }, [
+    publishSource,
+    title,
+    tagsRaw,
+    summary,
+    lang,
+    license,
+    replaces,
+    telegram,
+    twitter,
+    tipWallet,
+  ]);
 
   const localHashes = useMemo(() => {
     const shelf = new Set(listShelf().map((s) => s.hash.toLowerCase()));
@@ -809,6 +1098,7 @@ export function App() {
   const filtered = useMemo(() => {
     const q = parseQuery(filter);
     let rows = entries.filter((e) => {
+      if (isLocalPreviewDoc(e.from)) return false;
       if (typeFilter !== "all" && (e.type || "other") !== typeFilter) return false;
       if (scope === "local" && !localHashes.has(e.hash.toLowerCase())) return false;
       if (!applyDatePreset(e, datePreset)) return false;
@@ -839,9 +1129,51 @@ export function App() {
     () => layoutEdition(libraryCards, fronts, editionDay),
     [libraryCards, fronts, editionDay],
   );
+  /** A1 race for the selected open day (default tomorrow, up to +7). */
+  const openPress = useMemo(
+    () => layoutEdition(libraryCards, fronts, bidForDay),
+    [libraryCards, fronts, bidForDay],
+  );
 
-  const frontWinner = press.front;
+  const frontWinner = openPress.front;
   const editionDays = useMemo(() => listEditionDays(fronts), [fronts]);
+  const minOpenDay = useMemo(() => shiftUtcDay(utcTodayKey(), 1), []);
+  const maxOpenDay = useMemo(() => maxOpenEditionDay(), []);
+  const a1PriceHint = useMemo(
+    () =>
+      formatFrontPriceHint(
+        frontBidStats(openEditionBids(fronts, bidForDay)),
+        bidForDay,
+      ),
+    [fronts, bidForDay],
+  );
+  const editionOpen = isOpenEdition(editionDay);
+
+  useEffect(() => {
+    const h = press.lead?.entry.hash;
+    if (!h) {
+      setLeadPicture("");
+      return;
+    }
+    // Must read raw cache — bodyByHash is lowercased for search and breaks markers.
+    let cancelled = false;
+    void getCachedDoc(h).then((cached) => {
+      if (cancelled) return;
+      if (!cached?.bytes) {
+        setLeadPicture("");
+        return;
+      }
+      try {
+        const text = new TextDecoder().decode(new Uint8Array(cached.bytes));
+        setLeadPicture(unpackArticle(text).picture);
+      } catch {
+        setLeadPicture("");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [press.lead?.entry.hash]);
 
   const shortFunds =
     !!plsBalance &&
@@ -862,6 +1194,140 @@ export function App() {
     setScope("all");
     setSortBy("newest");
     setAuthorInput("");
+  }
+
+  /** Local look only — stays on Write; does not touch shelf / archive reader. */
+  function previewLocalPost() {
+    const packed = packArticle(pictureText, bodyText);
+    if (!packed.trim() || packed === " ") {
+      setPubError("Add a picture and/or body first.");
+      return;
+    }
+    setPubError(null);
+    setWriteMode("preview");
+  }
+
+  /** Empty Write after publish / Clear — draft must not look “still there”. */
+  function resetCompose() {
+    clearDraft();
+    setWriteMode("compose");
+    setTitle("");
+    setBodyText("");
+    setPictureText("");
+    setTagsRaw("");
+    setSummary("");
+    setLang("");
+    setLicense("");
+    setReplaces("");
+    setTelegram("");
+    setTwitter("");
+    setTipWallet("");
+    setChunks([]);
+    setPubError(null);
+  }
+
+  /** Test publish: local shelf + A1 bid on current Open day. No wallet. */
+  async function publishLocalTest() {
+    const packed = packArticle(pictureText, bodyText);
+    if (!packed.trim() || packed === " ") {
+      setPubError("Add a picture and/or body first.");
+      return;
+    }
+    setPublishing(true);
+    setPubError(null);
+    try {
+      const bytes = new TextEncoder().encode(packed);
+      const digest = await sha256Hex(bytes);
+      const manifestHash = (`0x${digest}`) as Hash;
+      const mimeType = "text/plain;charset=utf-8";
+      const now = Math.floor(Date.now() / 1000);
+      const t = (title.trim() || "(test)").slice(0, 72);
+      const tags = parseTags(tagsRaw);
+      // Never use a stale date — A1 must land on a live Open day
+      const forDay = isOpenPrintedDay(bidForDay)
+        ? bidForDay
+        : shiftUtcDay(utcTodayKey(), 1);
+      setBidForDay(forDay);
+      const shelfRow = {
+        hash: manifestHash,
+        from: LAB_FROM,
+        timeStamp: now,
+        title: t,
+        mimeType,
+        type: "text" as DocType,
+        tags,
+        summary: summary.trim().slice(0, 80) || undefined,
+        sha256: `0x${digest}`,
+        encoding: "raw" as const,
+        replaces: replaces.trim() || undefined,
+        chunkCount: 1,
+        kind: "pulse-archive" as const,
+        cw: false,
+      };
+      pinToShelf(shelfRow);
+      await upsertCatalog([shelfRow]);
+      await putCachedDoc({
+        hash: manifestHash,
+        mimeType,
+        title: t,
+        tags,
+        summary: shelfRow.summary,
+        type: "text",
+        sha256: shelfRow.sha256,
+        encoding: "raw",
+        replaces: shelfRow.replaces,
+        cw: false,
+        telegram: telegram.trim().replace(/^@+/g, "") || undefined,
+        twitter: twitter.trim().replace(/^@+/g, "") || undefined,
+        tipWallet:
+          tipWallet.trim() && isAddressLike(tipWallet.trim())
+            ? tipWallet.trim().toLowerCase()
+            : undefined,
+        from: LAB_FROM,
+        postedAt: now,
+        chunkCount: 1,
+        bytes: bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ) as ArrayBuffer,
+        savedAt: Date.now(),
+      });
+      // Floor A1 so sole publisher owns the lead until outbid
+      setFronts((prev) =>
+        dedupeFrontBids([
+          {
+            hash: (`0x${digest.slice(0, 63)}a`) as Hash,
+            from: LAB_FROM,
+            timeStamp: now,
+            manifest: manifestHash,
+            valueWei: 25n * 10n ** 18n,
+            forDay,
+          },
+          ...prev,
+        ]),
+      );
+      setEntries((prev) =>
+        dedupeBySha256(mergeShelfAndRemote(listShelf(), prev)),
+      );
+      setLastManifest(manifestHash);
+      resetCompose();
+      closeReader();
+      setEditionDay(forDay);
+      setTab("library");
+      void refreshRecentLocal();
+    } catch (e) {
+      setPubError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  function clickPublish() {
+    if (walletUiOff || !isConnected || !walletClient) {
+      void publishLocalTest();
+      return;
+    }
+    void runPublish(false);
   }
 
   async function runPublish(resume: boolean) {
@@ -908,11 +1374,13 @@ export function App() {
           meta: {
             title,
             tags,
-            note,
             summary,
             lang,
             license,
             replaces,
+            telegram,
+            twitter,
+            tipWallet,
           },
           walletClient,
           publicClient,
@@ -935,7 +1403,7 @@ export function App() {
               partsCount: prepared.parts.length,
               progress: p,
               tagsRaw,
-              note,
+              note: "",
               summary,
               lang,
               license,
@@ -954,7 +1422,6 @@ export function App() {
         mimeType,
         type: prepared.type,
         tags,
-        note: note.trim() || undefined,
         summary: summary.trim() || undefined,
         sha256,
         encoding: prepared.encoding,
@@ -966,20 +1433,25 @@ export function App() {
       pinToShelf(shelfRow);
       await upsertCatalog([shelfRow]);
       const textBytes = new TextEncoder().encode(
-        bodyText.trim() ? bodyText : " ",
+        packArticle(pictureText, bodyText),
       );
       await putCachedDoc({
         hash: manifestHash,
         mimeType: mimeType || "text/plain;charset=utf-8",
         title: shelfRow.title,
         tags,
-        note: shelfRow.note,
         summary: shelfRow.summary,
         type: prepared.type,
         sha256,
         encoding: prepared.encoding,
         replaces: shelfRow.replaces,
         cw: false,
+        telegram: telegram.trim().replace(/^@+/g, "") || undefined,
+        twitter: twitter.trim().replace(/^@+/g, "") || undefined,
+        tipWallet:
+          tipWallet.trim() && isAddressLike(tipWallet.trim())
+            ? tipWallet.trim().toLowerCase()
+            : undefined,
         from: address.toLowerCase(),
         postedAt: shelfRow.timeStamp,
         chunkCount: chunkHashes.length,
@@ -989,12 +1461,10 @@ export function App() {
         ) as ArrayBuffer,
         savedAt: Date.now(),
       });
-      clearDraft();
       clearIncomplete();
       setIncomplete(null);
-      setBodyText("");
-      setChunks([]);
       setLastManifest(manifestHash);
+      resetCompose();
       window.location.hash = sharePath(manifestHash);
       setTab("library");
       await load(manifestHash);
@@ -1030,7 +1500,11 @@ export function App() {
     setTipError(null);
     setTipOk(null);
     try {
-      const to = doc.from as `0x${string}`;
+      const tipTo =
+        doc.tipWallet && isAddressLike(doc.tipWallet)
+          ? (doc.tipWallet as `0x${string}`)
+          : (doc.from as `0x${string}`);
+      const to = tipTo;
       const preset = TIP_PRESETS.find((t) => t.id === tipTokenId);
 
       if (tipTokenId === "PLS" || (preset && !preset.address)) {
@@ -1106,9 +1580,9 @@ export function App() {
       const known = new Set(likes.map((l) => l.hash.toLowerCase()));
       const bundle = await listSinkBundle({
         onlyArchiveKind: false,
-        maxItems: 400,
+        maxItems: 100,
         knownHashes: known,
-        stopAfterKnown: 12,
+        stopAfterKnown: 5,
       });
       setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
       setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
@@ -1181,12 +1655,19 @@ export function App() {
     setFrontError(null);
     setFrontOk(null);
     try {
+      const forDay = bidForDay;
+      if (!isOpenPrintedDay(forDay)) {
+        throw new Error(
+          `A1 only schedules ${OPEN_HORIZON_DAYS} days ahead (Sync tip depth)`,
+        );
+      }
       const txHash = await sendFrontBid({
         walletClient,
         publicClient,
         account: address,
         manifestHash: doc.manifestHash,
         valueWei,
+        forDay,
       });
       const row: FrontBidEntry = {
         hash: txHash,
@@ -1194,9 +1675,10 @@ export function App() {
         timeStamp: Math.floor(Date.now() / 1000),
         manifest: doc.manifestHash.toLowerCase() as Hash,
         valueWei,
+        forDay,
       };
       setFronts((prev) => dedupeFrontBids([row, ...prev]));
-      setFrontOk(`Front page yours — ${formatPls(valueWei)} PLS`);
+      setFrontOk(`A1 for ${forDay} — ${formatPls(valueWei)} PLS`);
     } catch (e) {
       setFrontError(e instanceof Error ? e.message : String(e));
       setFrontOk(null);
@@ -1206,18 +1688,38 @@ export function App() {
   }
 
   async function likeDoc() {
-    if (!doc || !walletClient || !publicClient || !address) return;
-    if (wrongChain) {
+    if (!doc) return;
+    const localTest = walletUiOff || !walletClient || !address;
+    const likeFrom = localTest ? LAB_FROM : address!.toLowerCase();
+    if (!localTest && wrongChain) {
       setLikeError("Wrong network — hit Switch to Pulse.");
       return;
     }
-    if (hasLiked(likes, doc.manifestHash, address)) {
-      setLikeError("Already liked from this wallet");
+    if (hasLiked(likes, doc.manifestHash, likeFrom)) {
+      setLikeError(localTest ? "Already liked (local test)" : "Already liked from this wallet");
       return;
     }
     setLiking(true);
     setLikeError(null);
     try {
+      if (localTest) {
+        const salt = new TextEncoder().encode(
+          `${doc.manifestHash}:${likeFrom}:${Date.now()}`,
+        );
+        const digest = await sha256Hex(salt);
+        const row = {
+          hash: (`0x${digest}`) as Hash,
+          from: likeFrom,
+          timeStamp: Math.floor(Date.now() / 1000),
+          manifest: doc.manifestHash.toLowerCase() as Hash,
+        };
+        setLikes((prev) => dedupeLikes([row, ...prev]));
+        void upsertCachedLikes([row]);
+        setLikeOk("Liked (local test)");
+        setCiteMsg("Liked (local test)");
+        return;
+      }
+      if (!walletClient || !publicClient || !address) return;
       const txHash = await sendLike({
         walletClient,
         publicClient,
@@ -1282,11 +1784,7 @@ export function App() {
       }
       if (tab !== "library") return;
       if (e.key === "Escape") {
-        setDoc(null);
-        openHashRef.current = null;
-        setReadError(null);
-        setLoadSource(null);
-        clearDocRoute();
+        closeReader();
         return;
       }
       if (e.key !== "j" && e.key !== "k") return;
@@ -1305,10 +1803,10 @@ export function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, press.flat, doc, load]);
+  }, [tab, press.flat, doc, load, closeReader]);
 
   const editionDate = useMemo(() => {
-    const key = editionDay === "live" ? utcTodayKey() : editionDay;
+    const key = editionCursor(editionDay);
     const [y, m, d] = key.split("-").map(Number);
     const months = [
       "JANUARY",
@@ -1352,7 +1850,10 @@ export function App() {
           <button
             type="button"
             className="ghost"
-            onClick={() => setTab("post")}
+            onClick={() => {
+              setWriteMode("compose");
+              setTab("post");
+            }}
           >
             Write
             {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
@@ -1361,7 +1862,10 @@ export function App() {
           <button
             type="button"
             className="ghost"
-            onClick={() => setTab("library")}
+            onClick={() => {
+              setWriteMode("compose");
+              setTab("library");
+            }}
           >
             Front page
           </button>
@@ -1375,67 +1879,96 @@ export function App() {
           {browsing ? "…" : "Sync"}
         </button>
         <ThemePicker />
-        <WalletBar
-          onUseAsAuthor={(a) => {
-            setAuthorInput(a);
-            setTab("library");
-          }}
-        />
+        {!walletUiOff && (
+          <WalletBar
+            onUseAsAuthor={(a) => {
+              setAuthorInput(a);
+              setTab("library");
+            }}
+          />
+        )}
+        {walletUiOff && (
+          <span
+            className="meta rail-lab"
+            title="Wallet chrome off for testing (dev / lab)"
+          >
+            Wallet off
+          </span>
+        )}
       </div>
 
-      <header className="masthead">
-        <div className="ornament-bar" aria-hidden>
-          <span>Archive edition</span>
-          <span className="ornament">❖ ❖ ❖</span>
-          <span>Archive edition</span>
-        </div>
-        <h1 className="nameplate">Heart’s Archive</h1>
-        <hr className="double-rule" />
-        <div className="edition-line">
-          <span>Est · Pulse</span>
-          <span>On-chain press</span>
-          <span>{editionDate}</span>
-        </div>
-        <hr className="double-rule" />
-        <p className="paper-slogan">
-          {frontWinner
-            ? `A1 · ${formatPls(frontWinner.valueWei)} PLS`
-            : "A celebration of creative expression"}
-        </p>
-        {(editionDays.length > 0 || editionDay !== "live") && (
-          <div className="edition-picker">
-            <label>
-              Edition
-              <select
-                value={editionDay}
-                onChange={(e) =>
-                  setEditionDay(
-                    e.target.value === "live" ? "live" : e.target.value,
-                  )
-                }
-                aria-label="Newspaper edition day"
-              >
-                <option value="live">Live</option>
-                {editionDays.map((d) => (
-                  <option key={d} value={d}>
-                    {formatEditionLabel(d)}
-                    {d === utcTodayKey() ? " (today)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {editionDay !== "live" && (
+      {/* Masthead + edition ← → only on the front — not while reading (that ← looked like Back) */}
+      {tab === "library" && !doc && (
+        <header className="masthead">
+          <div className="ornament-bar" aria-hidden>
+            <span>Archive edition</span>
+            <span className="ornament">⬢ ⬡ ⬡ ⬡ ⬢</span>
+            <span>Archive edition</span>
+          </div>
+          <h1 className="nameplate">Heart’s Archive</h1>
+          <hr className="double-rule" />
+          <div className="edition-line">
+            <span>Est · Pulse</span>
+            <span>On-chain press</span>
+            <span className="edition-nav">
               <button
                 type="button"
-                className="ghost"
-                onClick={() => setEditionDay("live")}
+                className="edition-arrow"
+                aria-label="Earlier edition"
+                title="Earlier"
+                disabled={
+                  editionCursor(editionDay) <=
+                  (editionDays[editionDays.length - 1] ||
+                    shiftUtcDay(utcTodayKey(), -30))
+                }
+                onClick={() => {
+                  const c = editionCursor(editionDay);
+                  const today = utcTodayKey();
+                  const prev = shiftUtcDay(c, -1);
+                  setEditionDay(prev);
+                  if (prev > today) setBidForDay(prev);
+                }}
               >
-                Back to live
+                ←
               </button>
-            )}
+              <button
+                type="button"
+                className="edition-date-btn"
+                title={
+                  editionOpen
+                    ? `Open paper — A1 up to +${OPEN_HORIZON_DAYS}d (Sync tip)`
+                    : "Jump to today’s closed final"
+                }
+                onClick={() => setEditionDay(utcTodayKey())}
+              >
+                {editionDate}
+                {editionOpen ? " · Open" : " · Final"}
+              </button>
+              <button
+                type="button"
+                className="edition-arrow"
+                aria-label="Later open edition"
+                title={`Later open (max +${OPEN_HORIZON_DAYS}d)`}
+                disabled={editionCursor(editionDay) >= maxOpenDay}
+                onClick={() => {
+                  const today = utcTodayKey();
+                  const c = editionCursor(editionDay);
+                  const next =
+                    c <= today
+                      ? shiftUtcDay(today, 1)
+                      : shiftUtcDay(c, 1);
+                  if (next > maxOpenDay) return;
+                  setEditionDay(next);
+                  setBidForDay(next);
+                }}
+              >
+                →
+              </button>
+            </span>
           </div>
-        )}
-      </header>
+          <hr className="double-rule" />
+        </header>
+      )}
 
       {tab === "library" && (
         <section className="panel page library-page">
@@ -1545,9 +2078,15 @@ export function App() {
                         setLikes((prev) =>
                           dedupeLikes([...seed.likes, ...prev]),
                         );
-                        setFronts((prev) =>
-                          dedupeFrontBids([...seed.fronts, ...prev]),
-                        );
+                        setFronts((prev) => {
+                          const claimed = new Set(
+                            prev.map((b) => frontBidPrintedDay(b)),
+                          );
+                          const extra = seed.fronts.filter(
+                            (f) => !claimed.has(frontBidPrintedDay(f)),
+                          );
+                          return dedupeFrontBids([...prev, ...extra]);
+                        });
                         setEntries((prev) =>
                           dedupeBySha256(
                             mergeShelfAndRemote(seed.entries, prev),
@@ -1590,7 +2129,7 @@ export function App() {
             <p className="meta lab-banner">{labNote}</p>
           )}
 
-          {!doc && !reading && (
+          {!(doc && !isLocalPreviewDoc(doc.from)) && !reading && (
             <>
               {!browsing && filtered.length === 0 ? (
                 <div className="empty first-path">
@@ -1604,12 +2143,13 @@ export function App() {
                 </div>
               ) : (
                 <div className="broadsheet">
-                  {press.lead && (
+                  {press.lead ? (
                     <>
                       <SoftHeld
                         hit={softMuteHit(
                           press.lead.entry.title,
                           press.lead.entry.summary,
+                          leadPicture,
                         )}
                       >
                         <button
@@ -1627,21 +2167,44 @@ export function App() {
                           )}
                         </button>
                       </SoftHeld>
+                      {leadPicture.trim() ? (
+                        <button
+                          type="button"
+                          className="a1-cut"
+                          onClick={() => void load(press.lead!.entry.hash)}
+                          aria-label="Open lead story"
+                        >
+                          <TypeCutPicture
+                            text={leadPicture}
+                            className="a1-cut-pic"
+                          />
+                        </button>
+                      ) : null}
                       <p className="a1-byline">
                         By {shortAddr(press.lead.entry.from)}
                         {formatPostedAt(press.lead.entry.timeStamp)
                           ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
                           : ""}
-                        {frontWinner &&
-                        frontWinner.manifest.toLowerCase() ===
+                        {press.front &&
+                        press.front.manifest.toLowerCase() ===
                           press.lead.entry.hash.toLowerCase()
-                          ? ` · A1 ${formatPls(frontWinner.valueWei)} PLS`
+                          ? editionOpen
+                            ? ` · A1 ${formatPls(press.front.valueWei)} PLS (open)`
+                            : ` · A1 ${formatPls(press.front.valueWei)} PLS (final)`
                           : ""}
                         {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
                         {" · Continued inside →"}
                       </p>
                     </>
-                  )}
+                  ) : editionOpen ? (
+                    <div className="a1-unpublished">
+                      <p className="a1-hed">Tomorrow’s paper — unpublished</p>
+                      <p className="a1-dek">
+                        No A1 bid yet today. Bid PLS on a story to set the lead
+                        before UTC midnight.
+                      </p>
+                    </div>
+                  ) : null}
                   <hr className="single-rule" />
                   <div className="a1-grid">
                     <div className="a1-col">
@@ -1783,18 +2346,13 @@ export function App() {
             </>
           )}
 
-          {(doc || reading || readError) && (
+          {(doc || reading || readError) &&
+            !isLocalPreviewDoc(doc?.from) && (
             <div className="interior">
               <button
                 type="button"
                 className="interior-back"
-                onClick={() => {
-                  setDoc(null);
-                  openHashRef.current = null;
-                  setReadError(null);
-                  setLoadSource(null);
-                  clearDocRoute();
-                }}
+                onClick={() => closeReader()}
               >
                 ← Front page
               </button>
@@ -1807,39 +2365,81 @@ export function App() {
                 <p className="meta">Loading from Pulse…</p>
               )}
               {doc && (
-                <article className="article">
+                <article className="article article-full">
+                  <p className="side-label">Full article</p>
                   <h2 className="doc-title">
                     {doc.title || "(untitled)"}
                   </h2>
                   <p className="article-byline">
-                    {doc.from ? shortAddr(doc.from) : "unknown"}
+                    {isLabTestDoc(doc.from)
+                      ? "local test"
+                      : doc.from
+                        ? shortAddr(doc.from)
+                        : "unknown"}
                     {formatPostedAt(doc.postedAt)
                       ? ` · ${formatPostedAt(doc.postedAt)}`
                       : ""}
                     {` · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0} likes`}
                   </p>
+                  {(doc.telegram || doc.twitter || doc.tipWallet) && (
+                    <p className="article-contact meta">
+                      {telegramUrl(doc.telegram) && (
+                        <a
+                          href={telegramUrl(doc.telegram)!}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          TG {displayHandle(doc.telegram)}
+                        </a>
+                      )}
+                      {twitterUrl(doc.twitter) && (
+                        <a
+                          href={twitterUrl(doc.twitter)!}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          X {displayHandle(doc.twitter)}
+                        </a>
+                      )}
+                      {doc.tipWallet && isAddressLike(doc.tipWallet)
+                        ? ` · tip ${shortAddr(doc.tipWallet)}`
+                        : ""}
+                    </p>
+                  )}
                   <div className="reader-actions">
                     <button
                       type="button"
                       className={
-                        address &&
-                        hasLiked(likes, doc.manifestHash, address)
+                        hasLiked(
+                          likes,
+                          doc.manifestHash,
+                          walletUiOff || !address ? LAB_FROM : address,
+                        )
                           ? "primary"
                           : "ghost"
                       }
                       disabled={
                         liking ||
-                        !isConnected ||
-                        wrongChain ||
-                        !walletClient ||
-                        (!!address &&
-                          hasLiked(likes, doc.manifestHash, address))
+                        (!walletUiOff &&
+                          (!isConnected ||
+                            wrongChain ||
+                            !walletClient)) ||
+                        hasLiked(
+                          likes,
+                          doc.manifestHash,
+                          walletUiOff || !address ? LAB_FROM : address,
+                        )
                       }
                       onClick={() => void likeDoc()}
+                      title={
+                        walletUiOff || !address
+                          ? "Local test like — not on-chain"
+                          : "Burns ≥1 PLS to …feed · extra PLS still one like"
+                      }
                     >
                       {liking
-                        ? "Confirming…"
-                        : `Like ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
+                        ? "…"
+                        : `Like · 1 PLS · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
                     </button>
                     {doc.from && isConnected && (
                       <>
@@ -1881,6 +2481,7 @@ export function App() {
                           className="ghost"
                           disabled={wrongChain || tipping || !walletClient}
                           onClick={() => void tipAuthor()}
+                          title="Tip the writer any Pulse asset — publish/A1 stay PLS-only"
                         >
                           {tipping ? "…" : "Tip"}
                         </button>
@@ -1897,11 +2498,24 @@ export function App() {
                         {frontWinner &&
                         frontWinner.manifest.toLowerCase() ===
                           doc.manifestHash.toLowerCase()
-                          ? `Holding A1 · ${formatPls(frontWinner.valueWei)} PLS`
+                          ? `Leading ${bidForDay} A1 · ${formatPls(frontWinner.valueWei)} PLS — rebid if outbid`
                           : frontWinner
-                            ? `A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more to take it`
-                            : "A1 open — set the lead with PLS"}
+                            ? `${bidForDay} A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more to take it`
+                            : `${bidForDay} A1 open — set the lead with PLS`}
                       </span>
+                      <input
+                        type="date"
+                        value={bidForDay}
+                        min={minOpenDay}
+                        max={maxOpenDay}
+                        onChange={(e) => {
+                          const d = e.target.value;
+                          if (!isOpenPrintedDay(d)) return;
+                          setBidForDay(d);
+                          setEditionDay(d);
+                        }}
+                        aria-label="Open edition day for A1"
+                      />
                       <input
                         type="text"
                         value={frontAmount}
@@ -1980,7 +2594,10 @@ export function App() {
           <button
             type="button"
             className="ghost edition-back"
-            onClick={() => setTab("library")}
+            onClick={() => {
+              setWriteMode("compose");
+              setTab("library");
+            }}
           >
             ← Back to edition
           </button>
@@ -2026,64 +2643,223 @@ export function App() {
               )}
             </div>
           )}
+          {writeMode === "preview" ? (
+            <div className="write-preview">
+              <div className="preview-local-banner">
+                <p className="meta" style={{ margin: 0 }}>
+                  Preview — A1 lead, inside card, and full article. Nothing
+                  on-chain yet.
+                </p>
+                <div className="row wrap" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => setWriteMode("compose")}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={!prepared || publishing}
+                    onClick={() => clickPublish()}
+                    title={
+                      walletUiOff || !isConnected
+                        ? "Local test — front page, not on-chain"
+                        : undefined
+                    }
+                  >
+                    {publishing ? "…" : "Publish"}
+                  </button>
+                </div>
+              </div>
+              {pubError && <p className="status bad">{pubError}</p>}
+              <div className="write-preview-faces">
+                <section className="write-preview-face write-preview-face--a1">
+                  <p className="side-label">If you win A1</p>
+                  <div className="broadsheet write-preview-mock">
+                    <div className="a1-banner" role="presentation">
+                      <span className="a1-hed">
+                        {title.trim() || "(untitled)"}
+                      </span>
+                      {summary.trim() ? (
+                        <span className="a1-dek">{summary.trim()}</span>
+                      ) : null}
+                    </div>
+                    {pictureText.trim() ? (
+                      <div className="a1-cut" role="presentation">
+                        <TypeCutPicture
+                          text={pictureText}
+                          className="a1-cut-pic"
+                        />
+                      </div>
+                    ) : null}
+                    <p className="a1-byline">
+                      By {address ? shortAddr(address) : "you"}
+                      {" · A1 preview · Continued inside →"}
+                    </p>
+                  </div>
+                </section>
+                <section className="write-preview-face write-preview-face--inside">
+                  <p className="side-label">If you don’t get A1</p>
+                  <div className="a1-col write-preview-mock">
+                    <div className="story-item lead-col" role="presentation">
+                      <span className="a1-col-hed">
+                        {title.trim() || "(untitled)"}
+                      </span>
+                      {summary.trim() ? (
+                        <span className="story-dek">{summary.trim()}</span>
+                      ) : null}
+                      <span className="story-meta">
+                        {address ? shortAddr(address) : "you"} · inside card
+                      </span>
+                    </div>
+                  </div>
+                  <p className="meta write-preview-note">
+                    Column / brief face — no A1 banner, picture stays inside the
+                    full article.
+                  </p>
+                </section>
+              </div>
+              <article className="article article-preview">
+                <p className="side-label">Full article</p>
+                <h2 className="doc-title">{title.trim() || "(untitled)"}</h2>
+                <p className="article-byline">Local preview · not published</p>
+                {summary.trim() ? (
+                  <p className="a1-dek write-preview-dek">{summary.trim()}</p>
+                ) : null}
+                {(telegram.trim() ||
+                  twitter.trim() ||
+                  tipWallet.trim()) && (
+                  <p className="article-contact meta">
+                    {telegramUrl(telegram) && (
+                      <a
+                        href={telegramUrl(telegram)!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        TG {displayHandle(telegram)}
+                      </a>
+                    )}
+                    {twitterUrl(twitter) && (
+                      <a
+                        href={twitterUrl(twitter)!}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        X {displayHandle(twitter)}
+                      </a>
+                    )}
+                    {tipWallet.trim() && isAddressLike(tipWallet.trim())
+                      ? ` · tip ${shortAddr(tipWallet.trim())}`
+                      : ""}
+                  </p>
+                )}
+                <SoftHeld
+                  hit={softMuteHit(title, pictureText, bodyText)}
+                  label="Read anyway"
+                >
+                  <div className="article-stack">
+                    {pictureText.trim() ? (
+                      <TypeCutPicture
+                        text={pictureText}
+                        className="article-picture"
+                      />
+                    ) : null}
+                    {bodyText.trim() || !pictureText.trim() ? (
+                      <pre className="article-body">{bodyText}</pre>
+                    ) : null}
+                  </div>
+                </SoftHeld>
+              </article>
+            </div>
+          ) : (
           <div className="post-layout">
             <div className="post-compose">
               <div className="row">
                 <input
                   type="text"
-                  placeholder="Title"
+                  placeholder="Title · max 72 chars"
+                  maxLength={72}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
+              <div className="compose-picture">
+                <div className="compose-picture-head">
+                  <p className="meta type-cut-hint">
+                    Picture (type cut) — optional · paste ASCII · click to edit
+                  </p>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await copyAsciiArtPrompt();
+                          setAsciiPromptMsg(
+                            "Prompt copied — paste into any AI with your image",
+                          );
+                        } catch {
+                          setAsciiPromptMsg(
+                            "Copy failed — open /ascii-art-prompt.txt",
+                          );
+                        }
+                      })();
+                    }}
+                  >
+                    Copy AI prompt
+                  </button>
+                </div>
+                {asciiPromptMsg && (
+                  <p className="meta">{asciiPromptMsg}</p>
+                )}
+                <textarea
+                  className="type-cut-paste compose-paste"
+                  rows={Math.min(
+                    28,
+                    Math.max(10, pictureText.split("\n").length + 2),
+                  )}
+                  spellCheck={false}
+                  wrap="off"
+                  placeholder="Paste ASCII here, then click and edit by hand…"
+                  aria-label="ASCII picture — editable"
+                  value={pictureText}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData("text");
+                    if (!text.trim()) return;
+                    e.preventDefault();
+                    setPictureText(normalizeTypeCut(text));
+                  }}
+                  onChange={(e) => setPictureText(e.target.value)}
+                  onBlur={() => {
+                    if (pictureText.trim()) {
+                      setPictureText(normalizeTypeCut(pictureText));
+                    }
+                  }}
+                />
+                {pictureText.trim() ? (
+                  <>
+                    <TypeCutPicture
+                      text={pictureText}
+                      className="compose-picture-fit"
+                    />
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => setPictureText("")}
+                    >
+                      Remove picture
+                    </button>
+                  </>
+                ) : null}
+              </div>
               <textarea
-                placeholder="Write text…"
+                placeholder="Body — story text below the picture…"
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
-                rows={14}
+                rows={12}
               />
-              <details className="more">
-                <summary>More</summary>
-                <div className="post-more-grid">
-                  <input
-                    type="text"
-                    placeholder="Summary"
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Tags"
-                    value={tagsRaw}
-                    onChange={(e) => setTagsRaw(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Note"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Lang"
-                    value={lang}
-                    onChange={(e) => setLang(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="License"
-                    value={license}
-                    onChange={(e) => setLicense(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Replaces 0x…"
-                    value={replaces}
-                    onChange={(e) => setReplaces(e.target.value.trim())}
-                    spellCheck={false}
-                  />
-                </div>
-              </details>
             </div>
             <aside className="post-side">
               <div className="post-side-card">
@@ -2114,19 +2890,41 @@ export function App() {
                     Not enough PLS for gas — add PLS or shorten the post.
                   </p>
                 )}
+                <label className="post-meta-field">
+                  <span>Open edition</span>
+                  <input
+                    type="date"
+                    value={bidForDay}
+                    min={minOpenDay}
+                    max={maxOpenDay}
+                    onChange={(e) => {
+                      const d = e.target.value;
+                      if (!isOpenPrintedDay(d)) return;
+                      setBidForDay(d);
+                    }}
+                    aria-label="Which open paper to publish into"
+                  />
+                </label>
                 <div className="post-actions">
                   <button
                     type="button"
+                    className="ghost"
+                    disabled={!publishSource}
+                    onClick={() => previewLocalPost()}
+                    title="Local look only — does not publish on-chain"
+                  >
+                    Preview
+                  </button>
+                  <button
+                    type="button"
                     className="primary"
-                    disabled={
-                      !prepared ||
-                      !isConnected ||
-                      publishing ||
-                      wrongChain ||
-                      !walletClient ||
-                      shortFunds
+                    disabled={!prepared || publishing}
+                    onClick={() => clickPublish()}
+                    title={
+                      walletUiOff || !isConnected
+                        ? "Local test — front page, not on-chain"
+                        : undefined
                     }
-                    onClick={() => void runPublish(false)}
                   >
                     {publishing ? "…" : "Publish"}
                   </button>
@@ -2142,24 +2940,16 @@ export function App() {
                   <button
                     type="button"
                     className="ghost"
-                    onClick={() => {
-                      clearDraft();
-                      setTitle("");
-                      setBodyText("");
-                      setTagsRaw("");
-                      setNote("");
-                      setSummary("");
-                      setLang("");
-                      setLicense("");
-                      setReplaces("");
-                    }}
+                    onClick={() => resetCompose()}
                   >
                     Clear
                   </button>
                 </div>
-                {!isConnected && (
-                  <p className="meta">Connect wallet to publish.</p>
-                )}
+                <p className="meta a1-price-hint">{a1PriceHint}</p>
+                <p className="meta">
+                  Preview = faces only. Publish = local test front page (no
+                  wallet). Chain publish only if a wallet is connected.
+                </p>
                 {wrongChain && isConnected && (
                   <p className="status bad">
                     Wrong network — hit Switch to Pulse in the top bar.
@@ -2167,10 +2957,105 @@ export function App() {
                 )}
                 {pubError && <p className="status bad">{pubError}</p>}
               </div>
-              <TypeCutTool
-                phraseDefault={title.trim() || "HEARTS ARCHIVE"}
-                onUse={(text) => setBodyText(text)}
-              />
+              <div className="post-side-card post-meta-card">
+                <p className="side-label">Details</p>
+                <p className="meta post-meta-lead">
+                  Optional — helps readers find and tip you.
+                </p>
+                <label className="post-meta-field">
+                  <span>Summary</span>
+                  <input
+                    type="text"
+                    placeholder="One-line dek · max 80"
+                    maxLength={80}
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                  />
+                  <span className="post-meta-hint">
+                    {summary.length}/80 · A1 one-liner only
+                  </span>
+                </label>
+                <label className="post-meta-field">
+                  <span>Tags</span>
+                  <input
+                    type="text"
+                    placeholder="hex, news  or  #hex #news"
+                    value={tagsRaw}
+                    onChange={(e) => setTagsRaw(e.target.value)}
+                  />
+                  <span className="post-meta-hint">Comma or # — both fine</span>
+                </label>
+                <div className="post-meta-row">
+                  <label className="post-meta-field">
+                    <span>Language</span>
+                    <select
+                      value={lang}
+                      onChange={(e) => setLang(e.target.value)}
+                    >
+                      {withCurrentOption(LANG_OPTIONS, lang).map((o) => (
+                        <option key={o.value || "lang-empty"} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="post-meta-field">
+                    <span>License</span>
+                    <select
+                      value={license}
+                      onChange={(e) => setLicense(e.target.value)}
+                    >
+                      {withCurrentOption(LICENSE_OPTIONS, license).map((o) => (
+                        <option key={o.value || "lic-empty"} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="post-meta-field">
+                  <span>Telegram</span>
+                  <input
+                    type="text"
+                    placeholder="@handle"
+                    value={telegram}
+                    onChange={(e) => setTelegram(e.target.value)}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="post-meta-field">
+                  <span>Twitter / X</span>
+                  <input
+                    type="text"
+                    placeholder="@handle"
+                    value={twitter}
+                    onChange={(e) => setTwitter(e.target.value)}
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="post-meta-field">
+                  <span>Tip wallet</span>
+                  <input
+                    type="text"
+                    placeholder="0x… (optional — else your publish address)"
+                    value={tipWallet}
+                    onChange={(e) => setTipWallet(e.target.value.trim())}
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="post-meta-field">
+                  <span>Replaces</span>
+                  <input
+                    type="text"
+                    placeholder="0x… prior story (series)"
+                    value={replaces}
+                    onChange={(e) => setReplaces(e.target.value.trim())}
+                    spellCheck={false}
+                  />
+                </label>
+              </div>
               {lastManifest && (
                 <div className="live-strip post-side-card">
                   <p className="status ok" style={{ margin: 0 }}>
@@ -2180,11 +3065,12 @@ export function App() {
                     type="button"
                     className="primary"
                     onClick={() => {
+                      setWriteMode("compose");
                       setTab("library");
                       void load(lastManifest);
                     }}
                   >
-                    Open in reader
+                    Open full article
                   </button>
                   <a
                     className="ghost link-btn"
@@ -2208,6 +3094,7 @@ export function App() {
               )}
             </aside>
           </div>
+          )}
         </section>
       )}
 

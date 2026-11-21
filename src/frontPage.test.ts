@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { FrontBidEntry } from "./archive";
-import { formatPls, layoutPressPage } from "./frontPage";
+import {
+  formatFrontPriceHint,
+  formatPls,
+  frontBidStats,
+  layoutPressPage,
+} from "./frontPage";
 import type { SeriesCard } from "./series";
 
 function card(hash: string, title: string, time = 1): SeriesCard {
@@ -49,8 +54,45 @@ describe("press layout", () => {
     expect(layout.briefs.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("open paper does not invent A1 without a bid", () => {
+    const empty = layoutPressPage([a, b, c, d], [], {
+      requireBidForLead: true,
+    });
+    expect(empty.lead).toBeNull();
+    expect(empty.front).toBeNull();
+    const fallback = layoutPressPage([a, b, c, d], []);
+    expect(fallback.lead?.entry.title).toBe("Alpha");
+  });
+
   it("formats PLS", () => {
     expect(formatPls(10n * 10n ** 18n)).toBe("10");
     expect(formatPls(15n * 10n ** 17n)).toBe("1.5");
+  });
+
+  it("summarizes A1 current + average", () => {
+    const bids: FrontBidEntry[] = [
+      {
+        hash: "0x1" as `0x${string}`,
+        from: "0x1",
+        timeStamp: 1,
+        manifest: ("0x" + "a".repeat(64)) as `0x${string}`,
+        valueWei: 10n * 10n ** 18n,
+      },
+      {
+        hash: "0x2" as `0x${string}`,
+        from: "0x2",
+        timeStamp: 2,
+        manifest: ("0x" + "b".repeat(64)) as `0x${string}`,
+        valueWei: 20n * 10n ** 18n,
+      },
+    ];
+    const stats = frontBidStats(bids);
+    expect(stats.currentWei).toBe(20n * 10n ** 18n);
+    expect(stats.avgWei).toBe(15n * 10n ** 18n);
+    expect(stats.count).toBe(2);
+    expect(formatFrontPriceHint(stats)).toContain("avg 15 PLS");
+    expect(formatFrontPriceHint(stats)).toMatch(/PLS only/i);
+    expect(formatFrontPriceHint(stats)).toMatch(/Tip the writer anything/i);
+    expect(formatFrontPriceHint(frontBidStats([]))).toMatch(/A1 open/i);
   });
 });

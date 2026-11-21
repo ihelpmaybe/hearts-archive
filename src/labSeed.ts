@@ -116,7 +116,8 @@ export async function loadLabSeed(): Promise<{
       manifest: l.manifest.toLowerCase() as Hash,
     }));
 
-    let fronts: FrontBidEntry[] = (seed.fronts || [])
+    // No fake A1 — Open stays empty until a real / local-test bid.
+    const fronts: FrontBidEntry[] = (seed.fronts || [])
       .map((f) => {
         try {
           return {
@@ -131,31 +132,6 @@ export async function loadLabSeed(): Promise<{
         }
       })
       .filter((f): f is FrontBidEntry => !!f && f.valueWei > 0n);
-
-    // Lab always shows a paid lead if seed omitted fronts (+ a prior day for editions)
-    if (!fronts.length && entries.length) {
-      const tip =
-        entries.find((e) => e.tags?.includes("series")) || entries[0];
-      const runner = entries.find((e) => e.hash !== tip.hash) || tip;
-      const now = Math.floor(Date.now() / 1000);
-      const yesterday = now - 86_400;
-      fronts = [
-        {
-          hash: ("0x" + "e".repeat(64)) as Hash,
-          from: runner.from || "0xlab",
-          timeStamp: yesterday,
-          manifest: runner.hash,
-          valueWei: 8n * 10n ** 18n,
-        },
-        {
-          hash: ("0x" + "f".repeat(64)) as Hash,
-          from: tip.from || "0xlab",
-          timeStamp: tip.timeStamp || now,
-          manifest: tip.hash,
-          valueWei: 25n * 10n ** 18n,
-        },
-      ];
-    }
 
     return {
       entries,

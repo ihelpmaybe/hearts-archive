@@ -78,6 +78,14 @@ export type ManifestPayload = {
   lang?: string;
   license?: string;
   cw?: boolean;
+  /** Telegram handle without @ */
+  telegram?: string;
+  /** X / Twitter handle without @ */
+  twitter?: string;
+  /** Preferred tip assets, e.g. "PLS, HEX, INC" */
+  tipPrefs?: string;
+  /** Optional tip receive address (else signer / from) */
+  tipWallet?: string;
   originalBytes?: number;
   storedBytes?: number;
 };
@@ -344,7 +352,10 @@ export function tryParseManifest(input: Hex | string): ManifestPayload | null {
   }
 }
 
-/** On-chain “like” / sign-off — small JSON tx to …feed. */
+/** Minimum PLS burned to …feed for a valid like (extra PLS ≠ extra likes). */
+export const MIN_LIKE_WEI = 10n ** 18n; // 1 PLS
+
+/** On-chain “like” / sign-off — JSON + ≥1 PLS to …feed. */
 export type LikePayload = {
   kind: "pulse-archive-like";
   manifest: Hash;
@@ -379,8 +390,14 @@ export async function sendLike(opts: {
   publicClient: PublicClient;
   account: `0x${string}`;
   manifestHash: Hash;
+  /** Native PLS burned to …feed. Default / floor = 1 PLS. Extra does not add likes. */
+  valueWei?: bigint;
 }): Promise<Hash> {
   const { walletClient, publicClient, account, manifestHash } = opts;
+  const valueWei = opts.valueWei ?? MIN_LIKE_WEI;
+  if (valueWei < MIN_LIKE_WEI) {
+    throw new Error("Like needs at least 1 PLS burned to …feed");
+  }
   const payload: LikePayload = {
     kind: "pulse-archive-like",
     app: APP_NAME,
@@ -392,7 +409,7 @@ export async function sendLike(opts: {
     account,
     chain: walletClient.chain,
     to: ARCHIVE_SINK,
-    value: 0n,
+    value: valueWei,
     data,
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -406,9 +423,15 @@ export async function sendLike(opts: {
 export type FrontBidPayload = {
   kind: "pulse-archive-front";
   manifest: Hash;
+  /** Printed edition day YYYY-MM-DD. Omit = legacy (bid calendar day + 1). */
+  forDay?: string;
   app?: string;
   appVersion?: string;
 };
+
+function isDayKey(s: unknown): s is string {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
 
 export function tryParseFrontBid(input: Hex | string): FrontBidPayload | null {
   try {
@@ -424,6 +447,7 @@ export function tryParseFrontBid(input: Hex | string): FrontBidPayload | null {
     return {
       kind: "pulse-archive-front",
       manifest: obj.manifest.toLowerCase() as Hash,
+      ...(isDayKey(obj.forDay) ? { forDay: obj.forDay } : {}),
       app: obj.app,
       appVersion: obj.appVersion,
     };
@@ -439,14 +463,20 @@ export async function sendFrontBid(opts: {
   manifestHash: Hash;
   /** Native PLS attached to the bid — highest wins the front page. */
   valueWei: bigint;
+  /** Printed edition day to claim (up to OPEN horizon). */
+  forDay?: string;
 }): Promise<Hash> {
   const { walletClient, publicClient, account, manifestHash, valueWei } = opts;
   if (valueWei <= 0n) throw new Error("Front-page bid needs PLS");
+  if (opts.forDay && !isDayKey(opts.forDay)) {
+    throw new Error("Front-page bid forDay must be YYYY-MM-DD");
+  }
   const payload: FrontBidPayload = {
     kind: "pulse-archive-front",
     app: APP_NAME,
     appVersion: APP_VERSION,
     manifest: manifestHash.toLowerCase() as Hash,
+    ...(opts.forDay ? { forDay: opts.forDay } : {}),
   };
   const data = utf8ToHex(JSON.stringify(payload));
   const hash = await walletClient.sendTransaction({
@@ -473,6 +503,10 @@ export type PublishMetaInput = {
   replaces?: string;
   cw?: boolean;
   type?: DocType;
+  telegram?: string;
+  twitter?: string;
+  tipPrefs?: string;
+  tipWallet?: string;
 };
 
 /**
@@ -529,11 +563,12 @@ function buildManifest(opts: {
     originalBytes: prepared.originalBytes,
     storedBytes: prepared.storedBytes,
     chunkHashes,
-    ...(meta.title?.trim() ? { title: meta.title.trim().slice(0, 120) } : {}),
+    // A1 face: short hed + one-line dek — universal broadsheet template
+    ...(meta.title?.trim() ? { title: meta.title.trim().slice(0, 72) } : {}),
     ...(meta.tags && meta.tags.length ? { tags: meta.tags } : {}),
     ...(meta.note?.trim() ? { note: meta.note.trim().slice(0, 280) } : {}),
     ...(meta.summary?.trim()
-      ? { summary: meta.summary.trim().slice(0, 300) }
+      ? { summary: meta.summary.trim().slice(0, 80) }
       : {}),
     ...(meta.lang?.trim() ? { lang: meta.lang.trim().slice(0, 16) } : {}),
     ...(meta.license?.trim()
@@ -543,6 +578,29 @@ function buildManifest(opts: {
       ? { replaces: replaces.toLowerCase() as Hash }
       : {}),
     ...(meta.cw ? { cw: true } : {}),
+    ...(meta.telegram?.trim()
+      ? {
+          telegram: meta.telegram
+            .trim()
+            .replace(/^@+/g, "")
+            .slice(0, 64),
+        }
+      : {}),
+    ...(meta.twitter?.trim()
+      ? {
+          twitter: meta.twitter
+            .trim()
+            .replace(/^@+/g, "")
+            .slice(0, 64),
+        }
+      : {}),
+    ...(meta.tipPrefs?.trim()
+      ? { tipPrefs: meta.tipPrefs.trim().slice(0, 120) }
+      : {}),
+    ...(meta.tipWallet?.trim() &&
+    /^0x[a-fA-F0-9]{40}$/.test(meta.tipWallet.trim())
+      ? { tipWallet: meta.tipWallet.trim().toLowerCase() }
+      : {}),
   };
 }
 

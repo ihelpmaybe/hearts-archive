@@ -8,6 +8,12 @@ export type PublishDraft = {
   replaces: string;
   cw: boolean;
   bodyText?: string;
+  /** Type-cut / text picture (above body). */
+  pictureText?: string;
+  telegram?: string;
+  twitter?: string;
+  tipPrefs?: string;
+  tipWallet?: string;
   fileName?: string;
   savedAt: number;
 };

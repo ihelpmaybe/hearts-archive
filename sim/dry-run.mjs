@@ -237,12 +237,12 @@ async function main() {
       Buffer.compare(Buffer.from(read.bytes), body) === 0,
     );
 
-    // --- Like ---
+    // --- Like (≥1 PLS burn to …feed; extra PLS ≠ extra likes) ---
     const likeHash = await wallet(liker).sendTransaction({
       account: liker,
       to: ARCHIVE_SINK,
       data: likeCalldata(manifestHash),
-      value: 0n,
+      value: 10n ** 18n,
       chain: anvilChain,
     });
     await publicClient.waitForTransactionReceipt({ hash: likeHash });
@@ -251,7 +251,8 @@ async function main() {
     pass(
       "Like",
       !!likeParsed &&
-        likeParsed.manifest === manifestHash.toLowerCase(),
+        likeParsed.manifest === manifestHash.toLowerCase() &&
+        likeTx.value >= 10n ** 18n,
     );
 
     // --- Tip (native) ---

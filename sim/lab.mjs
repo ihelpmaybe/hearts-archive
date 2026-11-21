@@ -146,7 +146,7 @@ async function sendLikeTx({ wallet, publicClient, account, manifestHash }) {
     account,
     to: ARCHIVE_SINK,
     data: likeCalldata(manifestHash),
-    value: 0n,
+    value: 10n ** 18n, // ≥1 PLS burn
     chain: anvilChain,
   });
   await publicClient.waitForTransactionReceipt({ hash });

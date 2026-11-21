@@ -1,6 +1,7 @@
 import type { Hash, Hex } from "viem";
 import {
   ARCHIVE_SINK,
+  MIN_LIKE_WEI,
   tryParseFrontBid,
   tryParseLike,
   tryParseManifest,
@@ -40,7 +41,24 @@ export type FrontBidEntry = {
   timeStamp: number;
   manifest: Hash;
   valueWei: bigint;
+  /** Printed edition day YYYY-MM-DD. Missing = legacy (bid UTC day + 1). */
+  forDay?: string;
 };
+
+/** Which masthead day this bid claims. */
+export function frontBidPrintedDay(b: FrontBidEntry): string {
+  if (b.forDay && /^\d{4}-\d{2}-\d{2}$/.test(b.forDay)) return b.forDay;
+  if (!b.timeStamp || b.timeStamp <= 0) return "";
+  const d = new Date(b.timeStamp * 1000);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  // Legacy: bid on calendar day D → paper D+1
+  const t = Date.UTC(y, d.getUTCMonth(), d.getUTCDate() + 1);
+  const n = new Date(t);
+  return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, "0")}-${String(n.getUTCDate()).padStart(2, "0")}`;
+}
 
 type V2Tx = {
   hash: string;
@@ -136,14 +154,21 @@ export async function fetchAddressTxsPaged(
     knownHashes?: Set<string>;
     /** Pause between pages — kinder to explorer. */
     pageGapMs?: number;
+    /**
+     * Stop once we hit a tx older than this unix time (newest-first stream).
+     * Used for “since last Sync, capped at 30d” — not day-by-day calls.
+     */
+    stopOlderThanUnix?: number;
   },
 ): Promise<V2Tx[]> {
+  // Gentle defaults: one newest-first stream (not a request per day).
   const pageSize = opts?.pageSize ?? 50;
-  const maxItems = opts?.maxItems ?? 500;
-  const maxPages = opts?.maxPages ?? 20;
+  const maxItems = opts?.maxItems ?? 150;
+  const maxPages = opts?.maxPages ?? 6;
   const stopAfterKnown = opts?.stopAfterKnown ?? 0;
   const known = opts?.knownHashes;
-  const pageGapMs = opts?.pageGapMs ?? 120;
+  const pageGapMs = opts?.pageGapMs ?? 350;
+  const stopOlderThanUnix = opts?.stopOlderThanUnix;
   const out: V2Tx[] = [];
   const seen = new Set<string>();
   let pageParams: PageParams | null = null;
@@ -162,6 +187,18 @@ export async function fetchAddressTxsPaged(
       const h = (tx.hash || "").toLowerCase();
       if (!h || seen.has(h)) continue;
       seen.add(h);
+
+      const ts = tx.timestamp ? Date.parse(tx.timestamp) / 1000 : 0;
+      if (
+        stopOlderThanUnix != null &&
+        Number.isFinite(ts) &&
+        ts > 0 &&
+        ts < stopOlderThanUnix
+      ) {
+        // Past our lookback window — done (keep this boundary tx out)
+        return out;
+      }
+
       out.push(tx);
       if (known && stopAfterKnown > 0) {
         if (known.has(h)) {
@@ -240,6 +277,8 @@ export function collectLikes(rows: V2Tx[]): LikeEntry[] {
     if (!tx.raw_input || tx.raw_input === "0x") continue;
     const like = tryParseLike(tx.raw_input as Hex);
     if (!like) continue;
+    // Free / dust likes do not count
+    if (txValueWei(tx) < MIN_LIKE_WEI) continue;
     const ts = tx.timestamp ? Date.parse(tx.timestamp) / 1000 : 0;
     out.push({
       hash: tx.hash.toLowerCase() as Hash,
@@ -251,7 +290,7 @@ export function collectLikes(rows: V2Tx[]): LikeEntry[] {
   return out;
 }
 
-/** Unique likes per (manifest, from) — latest wins. */
+/** Unique likes per (manifest, from) — latest wins. Extra PLS ≠ extra likes. */
 export function dedupeLikes(likes: LikeEntry[]): LikeEntry[] {
   const seen = new Set<string>();
   const out: LikeEntry[] = [];
@@ -299,16 +338,18 @@ export function collectFrontBids(rows: V2Tx[]): FrontBidEntry[] {
       timeStamp: Number.isFinite(ts) ? ts : 0,
       manifest: bid.manifest,
       valueWei,
+      ...(bid.forDay ? { forDay: bid.forDay } : {}),
     });
   }
   return out;
 }
 
-/** One winning bid per manifest — highest PLS, newer wins ties. */
+/** One winning bid per (printed day, manifest) — highest PLS, newer wins ties. */
 export function dedupeFrontBids(bids: FrontBidEntry[]): FrontBidEntry[] {
   const best = new Map<string, FrontBidEntry>();
   for (const b of bids) {
-    const key = b.manifest.toLowerCase();
+    const day = frontBidPrintedDay(b) || "_";
+    const key = `${day}:${b.manifest.toLowerCase()}`;
     const prev = best.get(key);
     if (
       !prev ||
@@ -344,21 +385,26 @@ export function bidForManifest(
 
 export async function listSinkBundle(opts?: {
   maxItems?: number;
+  maxPages?: number;
   onlyArchiveKind?: boolean;
   knownHashes?: Set<string>;
-  /** Default 8 — stop paging once we hit a streak of txs already cached. */
+  /** Default 5 — stop paging once we hit a streak of txs already cached. */
   stopAfterKnown?: number;
+  /** Newest-first: stop when txs are older than this unix time. */
+  stopOlderThanUnix?: number;
 }): Promise<{
   entries: ArchiveEntry[];
   likes: LikeEntry[];
   fronts: FrontBidEntry[];
 }> {
+  const maxItems = opts?.maxItems ?? 150;
   const rows = await fetchAddressTxsPaged(ARCHIVE_SINK, {
     pageSize: 50,
-    maxItems: opts?.maxItems ?? 500,
-    maxPages: 20,
+    maxItems,
+    maxPages: opts?.maxPages ?? (maxItems > 150 ? 16 : 6),
     knownHashes: opts?.knownHashes,
-    stopAfterKnown: opts?.stopAfterKnown ?? (opts?.knownHashes ? 8 : 0),
+    stopAfterKnown: opts?.stopAfterKnown ?? (opts?.knownHashes ? 5 : 0),
+    stopOlderThanUnix: opts?.stopOlderThanUnix,
   });
   return {
     entries: collectManifests(rows, {
@@ -379,12 +425,19 @@ export async function listArchiveFromSink(opts?: {
 
 export async function listArchiveFromAuthor(
   author: `0x${string}`,
-  opts?: { maxItems?: number; knownHashes?: Set<string> },
+  opts?: {
+    maxItems?: number;
+    maxPages?: number;
+    knownHashes?: Set<string>;
+    stopOlderThanUnix?: number;
+  },
 ): Promise<ArchiveEntry[]> {
+  const maxItems = opts?.maxItems ?? 150;
   const rows = await fetchAddressTxsPaged(author, {
     pageSize: 50,
-    maxItems: opts?.maxItems ?? 500,
-    maxPages: 20,
+    maxItems,
+    maxPages: opts?.maxPages ?? (maxItems > 150 ? 16 : 6),
+    stopOlderThanUnix: opts?.stopOlderThanUnix,
     knownHashes: opts?.knownHashes,
     stopAfterKnown: opts?.knownHashes ? 8 : 0,
   });

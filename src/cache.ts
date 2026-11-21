@@ -19,6 +19,10 @@ export type CachedDoc = {
   encoding?: string;
   replaces?: string;
   cw?: boolean;
+  telegram?: string;
+  twitter?: string;
+  tipPrefs?: string;
+  tipWallet?: string;
   from?: string;
   postedAt?: number;
   chunkCount: number;
