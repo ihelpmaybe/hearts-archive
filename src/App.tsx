@@ -94,6 +94,7 @@ import { loadLocalCatalog } from "./catalogLocal";
 import { loadLabSeed } from "./labSeed";
 import {
   buildPublishGuide,
+  isPublishGuideEntry,
   publishGuideHashForDay,
 } from "./howToGuide";
 import { isLabMode, labOpenedViaQuery, setLabMode } from "./labMode";
@@ -260,6 +261,8 @@ export function App() {
   const [frontOk, setFrontOk] = useState<string | null>(null);
   const [labNote, setLabNote] = useState<string | undefined>();
   const [labOn, setLabOn] = useState(() => isLabMode());
+  /** Phone Search sheet — controlled so the bottom tab can open it. */
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [expandSeries] = useState<Set<string>>(() => new Set());
   const [recentTips, setRecentTips] = useState<`0x${string}`[]>(() =>
     loadRecentTipTokens(),
@@ -960,9 +963,25 @@ export function App() {
         const openDay = shiftUtcDay(utcTodayKey(), 1);
         const guideHash = await publishGuideHashForDay(openDay);
         const openBids = bidsForPrintedDay(loadLocalFronts(), openDay);
-        const hasRealOpenStory = openBids.some(
-          (b) => b.manifest.toLowerCase() !== guideHash.toLowerCase(),
+        const [staticCat, idbCat] = await Promise.all([
+          loadLocalCatalog(),
+          listCatalog(),
+        ]);
+        const known = dedupeBySha256(
+          mergeShelfAndRemote(
+            mergeShelfAndRemote(listShelf(), staticCat),
+            idbCat,
+          ),
         );
+        const byHash = new Map(
+          known.map((e) => [e.hash.toLowerCase(), e] as const),
+        );
+        const isGuideBid = (b: (typeof openBids)[number]) => {
+          if (b.manifest.toLowerCase() === guideHash.toLowerCase()) return true;
+          const ent = byHash.get(b.manifest.toLowerCase());
+          return !!ent && isPublishGuideEntry(ent);
+        };
+        const hasRealOpenStory = openBids.some((b) => !isGuideBid(b));
         const deep = parseRouteHash(window.location.hash);
         if (!hasRealOpenStory) {
           const guide = await buildPublishGuide(openDay);
@@ -970,11 +989,10 @@ export function App() {
             dedupeBySha256(mergeShelfAndRemote([guide.entry], prev)),
           );
           setFronts((prev) => {
-            const withoutGuide = prev.filter(
-              (b) =>
-                frontBidPrintedDay(b) !== openDay ||
-                b.manifest.toLowerCase() !== guideHash.toLowerCase(),
-            );
+            const withoutGuide = prev.filter((b) => {
+              if (frontBidPrintedDay(b) !== openDay) return true;
+              return !isGuideBid(b);
+            });
             const real = bidsForPrintedDay(withoutGuide, openDay);
             if (real.length > 0) return withoutGuide;
             return dedupeFrontBids([guide.front, ...withoutGuide]);
@@ -1988,12 +2006,25 @@ export function App() {
   const activeInside = insideBands.find((b) => b.letter === activePage);
 
   return (
-    <div className="app">
+    <div className={`app${mobileToolsOpen ? " app--tools-open" : ""}`}>
       <div className="rail">
         {tab === "library" && (
-          <details className="filters-drawer filters-drawer--rail">
+          <details
+            className="filters-drawer filters-drawer--rail"
+            open={mobileToolsOpen}
+            onToggle={(e) => {
+              setMobileToolsOpen(e.currentTarget.open);
+            }}
+          >
             <summary>Search &amp; tools</summary>
             <div className="filters-body">
+              <button
+                type="button"
+                className="primary mobile-tools-done"
+                onClick={() => setMobileToolsOpen(false)}
+              >
+                Done
+              </button>
               <input
                 className="grow"
                 type="text"
@@ -2159,8 +2190,9 @@ export function App() {
         {tab === "library" ? (
           <button
             type="button"
-            className="ghost"
+            className="ghost rail-act rail-act--write"
             onClick={() => {
+              setMobileToolsOpen(false);
               setWriteMode("compose");
               setTab("post");
             }}
@@ -2171,7 +2203,7 @@ export function App() {
         ) : (
           <button
             type="button"
-            className="ghost"
+            className="ghost rail-act rail-act--front"
             onClick={() => {
               setWriteMode("compose");
               setTab("library");
@@ -2182,24 +2214,28 @@ export function App() {
         )}
         <button
           type="button"
-          className="ghost"
+          className="ghost rail-act rail-act--sync"
           disabled={browsing}
           onClick={() => void refreshLibrary({ mode: "manual" })}
         >
           {browsing ? "…" : "Sync"}
         </button>
-        <ThemePicker />
+        <span className="rail-act rail-act--chrome">
+          <ThemePicker />
+        </span>
         {!walletUiOff && (
-          <WalletBar
-            onUseAsAuthor={(a) => {
-              setAuthorInput(a);
-              setTab("library");
-            }}
-          />
+          <span className="rail-act rail-act--chrome">
+            <WalletBar
+              onUseAsAuthor={(a) => {
+                setAuthorInput(a);
+                setTab("library");
+              }}
+            />
+          </span>
         )}
         {deskFace && (
           <span
-            className="meta rail-lab rail-lab--warn"
+            className="meta rail-lab rail-lab--warn rail-act rail-act--desk"
             title="DEV ONLY — local sandbox. Real app: ZIP + start-press.cmd (or npm run dev:press)"
           >
             Desk · DEV ONLY
@@ -2207,7 +2243,7 @@ export function App() {
         )}
         {!deskFace && labOn && (
           <span
-            className="meta rail-lab"
+            className="meta rail-lab rail-act rail-act--desk"
             title="Lab seed on — wallet chrome off until you uncheck Lab"
           >
             Lab · wallet off
@@ -2337,6 +2373,80 @@ export function App() {
       </ArchiveUiProvider>
 
       {citeMsg && <div className="toast">{citeMsg}</div>}
+
+      <nav className="mobile-tabbar" aria-label="App">
+        <button
+          type="button"
+          className={
+            tab === "library" && !mobileToolsOpen
+              ? "mobile-tab is-active"
+              : "mobile-tab"
+          }
+          onClick={() => {
+            setMobileToolsOpen(false);
+            setWriteMode("compose");
+            setTab("library");
+            closeReader();
+          }}
+        >
+          <span className="mobile-tab-ico" aria-hidden="true">
+            ▦
+          </span>
+          <span className="mobile-tab-label">Paper</span>
+        </button>
+        <button
+          type="button"
+          className={
+            mobileToolsOpen ? "mobile-tab is-active" : "mobile-tab"
+          }
+          onClick={() => {
+            if (tab !== "library") {
+              setWriteMode("compose");
+              setTab("library");
+            }
+            setMobileToolsOpen((open) => !open);
+          }}
+        >
+          <span className="mobile-tab-ico" aria-hidden="true">
+            ⌕
+          </span>
+          <span className="mobile-tab-label">Search</span>
+        </button>
+        <button
+          type="button"
+          className={
+            tab === "post" ? "mobile-tab is-active" : "mobile-tab"
+          }
+          onClick={() => {
+            setMobileToolsOpen(false);
+            setWriteMode("compose");
+            setTab("post");
+          }}
+        >
+          <span className="mobile-tab-ico" aria-hidden="true">
+            ✎
+          </span>
+          <span className="mobile-tab-label">
+            Write
+            {incomplete ? (
+              <span className="tab-dot warn" aria-hidden />
+            ) : null}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="mobile-tab"
+          disabled={browsing}
+          onClick={() => void refreshLibrary({ mode: "manual" })}
+        >
+          <span className="mobile-tab-ico" aria-hidden="true">
+            ↻
+          </span>
+          <span className="mobile-tab-label">
+            {browsing ? "…" : "Sync"}
+          </span>
+        </button>
+      </nav>
     </div>
   );
 }

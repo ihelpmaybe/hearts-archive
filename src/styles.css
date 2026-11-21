@@ -49,6 +49,14 @@ body {
   padding: 0.1rem 1rem 2.5rem;
 }
 
+.mobile-tabbar {
+  display: none;
+}
+
+.mobile-tools-done {
+  display: none;
+}
+
 /* Thin web chrome — not part of the paper face */
 .rail {
   display: flex;
@@ -2438,4 +2446,339 @@ button.linkish:disabled {
 
 a {
   color: var(--accent-hot);
+}
+
+/* ── Mobile app shell (phone / small tablet) ── */
+@media (max-width: 720px) {
+  :root {
+    --mobile-tabbar-h: 3.55rem;
+  }
+
+  html,
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  .app {
+    max-width: none;
+    padding: 0.35rem 0.75rem
+      calc(var(--mobile-tabbar-h) + 0.85rem + env(safe-area-inset-bottom, 0px));
+    min-height: 100dvh;
+  }
+
+  /* Top chrome: Search summary only — actions live in the tab bar */
+  .rail {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0 0.35rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  /* Closed: keep out of the rail — Search tab owns opening */
+  .rail .filters-drawer--rail:not([open]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .rail .filters-drawer--rail[open] > summary {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    padding: 0.45rem 0.55rem;
+    min-height: 2.5rem;
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--line-soft);
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+  }
+
+  .rail-act--write,
+  .rail-act--front,
+  .rail-act--sync {
+    display: none !important;
+  }
+
+  .rail-actions {
+    width: 100%;
+    margin-left: 0;
+    gap: 0.25rem;
+    opacity: 1;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+
+  .rail-act--desk {
+    display: none !important;
+  }
+
+  .rail-act--chrome {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .theme-make-btn {
+    display: none !important;
+  }
+
+  .rail .ghost,
+  .rail .primary {
+    min-height: 2.5rem;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  /* Search / tools as a full-width sheet above the tab bar */
+  .filters-drawer--rail[open] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+    z-index: 45;
+    margin: 0;
+    padding: 0.65rem 0.85rem 1rem;
+    background: var(--bg);
+    background-image: var(--bg-glow);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 0;
+  }
+
+  .filters-drawer--rail[open] > summary {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin-bottom: 0.65rem;
+    background: var(--panel);
+  }
+
+  .mobile-tools-done {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-bottom: 0.65rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .filters-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    align-items: stretch;
+  }
+
+  .filters-body input,
+  .filters-body select,
+  .filters-body button,
+  .filters-body .ghost,
+  .filters-body .file-btn,
+  .filters-body .check {
+    width: 100%;
+    min-height: 2.75rem;
+    font-size: 1rem; /* stop iOS zoom-on-focus */
+    box-sizing: border-box;
+  }
+
+  .filters-body .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* Bottom app tabs */
+  .mobile-tabbar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    height: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+    padding: 0.2rem 0.15rem env(safe-area-inset-bottom, 0px);
+    margin: 0;
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel) 92%, var(--bg));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 -6px 18px color-mix(in srgb, var(--text) 8%, transparent);
+  }
+
+  .mobile-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.12rem;
+    margin: 0;
+    padding: 0.25rem 0.15rem;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-ui);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    min-height: 2.85rem;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .mobile-tab:disabled {
+    opacity: 0.45;
+  }
+
+  .mobile-tab.is-active {
+    color: var(--text);
+  }
+
+  .mobile-tab.is-active .mobile-tab-ico {
+    transform: translateY(-1px);
+  }
+
+  .mobile-tab-ico {
+    font-size: 1.15rem;
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  .mobile-tab-label {
+    line-height: 1.1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  /* Paper / nameplate denser on phone */
+  .masthead {
+    margin-bottom: 0.1rem;
+  }
+
+  .nameplate {
+    font-size: clamp(1.55rem, 9vw, 2.15rem);
+    margin: 0.2rem 0 0.15rem;
+  }
+
+  .edition-day-nav {
+    margin-bottom: 0.25rem;
+  }
+
+  .section-pages {
+    gap: 0.35rem;
+    margin: 0.35rem 0 0.55rem;
+  }
+
+  .section-pages button {
+    min-height: 2.5rem;
+    min-width: 2.5rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.85rem;
+  }
+
+  /* Story face + reader */
+  .a1-hed {
+    font-size: clamp(1.35rem, 6.5vw, 1.85rem);
+    line-height: 1.12;
+  }
+
+  .story-item,
+  .a1-lead {
+    padding: 0.55rem 0;
+  }
+
+  .reader-actions .ghost,
+  .reader-actions .primary,
+  .reader-actions button {
+    min-height: 2.75rem;
+    font-size: 0.9rem;
+    flex: 1 1 auto;
+  }
+
+  .front-bid-bar {
+    gap: 0.45rem;
+    padding: 0.55rem 0;
+  }
+
+  .front-bid-bar input,
+  .front-bid-bar button {
+    min-height: 2.75rem;
+    font-size: 1rem;
+  }
+
+  .front-bid-bar .primary {
+    width: 100%;
+  }
+
+  /* Write = full-screen compose */
+  .post-layout {
+    gap: 0.75rem;
+  }
+
+  .post-compose textarea,
+  .post-compose input,
+  .post-meta-field input,
+  .post-meta-field select {
+    font-size: 1rem;
+    min-height: 2.75rem;
+  }
+
+  .post-compose textarea {
+    min-height: 11rem;
+  }
+
+  .post-actions {
+    position: sticky;
+    bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px) + 0.35rem);
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.55rem 0.15rem;
+    margin: 0.5rem -0.15rem 0;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .post-actions .primary,
+  .post-actions .ghost {
+    min-height: 2.85rem;
+    font-size: 0.95rem;
+  }
+
+  .edition-back {
+    min-height: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .toast {
+    bottom: calc(var(--mobile-tabbar-h) + 0.75rem + env(safe-area-inset-bottom, 0px));
+    left: 0.75rem;
+    right: 0.75rem;
+  }
+
+  .money-strip-legend {
+    font-size: 0.78rem;
+  }
 }
