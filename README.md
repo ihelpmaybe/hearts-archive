@@ -86,7 +86,7 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 | `npm run build:pages` | Press bundle with `/hearts-archive/` base (GitHub Pages) |
 | `npm run build:desk` | Desk static build (optional) |
 | `npm run sim:lab` | Local anvil publish / read / like (no Pulse trail) |
-| `npm run sim:dry` | Post → Sync → Like → Tip on anvil |
+| `npm run sim:dry` | Post → Sync → Like → Tip → Front-bid (A1) on anvil |
 | `npm run sim:seed` | Rebuild `public/lab-seed.json` |
 | `npm run sim` | Foundry stress → `sim/out/` (gitignored) |
 

@@ -2,7 +2,11 @@
 
 No custom theme engine. Packs are **CSS custom properties** in JSON — same pattern as the operator desk (`tts/kit.css` `[data-theme=…]`).
 
-## Drop in
+## In the app
+
+**Make** (next to the theme picker) → live edit → **Save on device** · **Download JSON** · **Submit theme** (GitHub issue with the pack attached/pasted).
+
+## Drop in (maintainers)
 
 1. Copy `venus.json` → `your-id.json`
 2. Edit `id`, `name`, `eyebrow`, `swatch`, `vars`

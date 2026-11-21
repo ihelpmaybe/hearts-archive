@@ -26,6 +26,7 @@
     "sim:quick": "node sim/run-sim.mjs --users 100 --concurrency 20",
     "sim:lab": "node sim/lab.mjs",
     "sim:dry": "node sim/dry-run.mjs",
+    "sim:front-spam": "node sim/front-spam.mjs",
     "sim:seed": "node sim/seed-news.mjs",
     "mcp:themes": "node mcp-themes/server.mjs"
   },

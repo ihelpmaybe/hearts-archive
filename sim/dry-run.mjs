@@ -1,5 +1,5 @@
 /**
- * One Foundry dry-run: Post → sink scrape (Sync) → Like → Tip.
+ * One Foundry dry-run: Post → Sync → Like → Tip → Front-bid (A1).
  * Local anvil only — no Pulse trail.
  *
  *   npm run sim:dry
@@ -25,10 +25,12 @@ import {
   ARCHIVE_SINK,
   buildManifest,
   chunkCalldata,
+  frontBidCalldata,
   likeCalldata,
   manifestCalldata,
   preparePayload,
   readDocumentFromChain,
+  tryParseFrontBid,
   tryParseLike,
   tryParseManifest,
 } from "./protocol-node.mjs";
@@ -137,7 +139,7 @@ async function main() {
     return gate(name, cond, detail);
   };
 
-  console.log(`Dry-run · Post → Sync → Like → Tip · :${PORT}\n`);
+  console.log(`Dry-run · Post → Sync → Like → Tip → Front-bid · :${PORT}\n`);
 
   const anvil = spawn(
     anvilExe(),
@@ -162,12 +164,21 @@ async function main() {
     const author = mnemonicToAccount(MNEMONIC, { addressIndex: 0 });
     const tipper = mnemonicToAccount(MNEMONIC, { addressIndex: 1 });
     const liker = mnemonicToAccount(MNEMONIC, { addressIndex: 2 });
+    const bidderLow = mnemonicToAccount(MNEMONIC, { addressIndex: 3 });
+    const bidderHigh = mnemonicToAccount(MNEMONIC, { addressIndex: 4 });
     const wallet = (account) =>
       createWalletClient({
         account,
         chain: anvilChain,
         transport: http(RPC),
       });
+
+    /** Tomorrow UTC — Open paper day (matches app forDay). */
+    const forDay = (() => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().slice(0, 10);
+    })();
 
     // --- Post ---
     const body = Buffer.from(
@@ -324,6 +335,70 @@ async function main() {
       pass("Tip ERC-20", false, e instanceof Error ? e.message : String(e));
     }
 
+    // --- Front-bid (A1): PLS to …feed + forDay; highest wins ---
+    const lowWei = parseEther("2");
+    const highWei = parseEther("5");
+    const lowBidHash = await wallet(bidderLow).sendTransaction({
+      account: bidderLow,
+      to: ARCHIVE_SINK,
+      data: frontBidCalldata(manifestHash, forDay),
+      value: lowWei,
+      chain: anvilChain,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: lowBidHash });
+    const highBidHash = await wallet(bidderHigh).sendTransaction({
+      account: bidderHigh,
+      to: ARCHIVE_SINK,
+      data: frontBidCalldata(manifestHash, forDay),
+      value: highWei,
+      chain: anvilChain,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: highBidHash });
+
+    const tipAfterBid = await publicClient.getBlockNumber();
+    const bids = [];
+    for (let b = 0n; b <= tipAfterBid; b++) {
+      const block = await publicClient.getBlock({
+        blockNumber: b,
+        includeTransactions: true,
+      });
+      for (const tx of block.transactions) {
+        if (!tx.to || tx.to.toLowerCase() !== ARCHIVE_SINK) continue;
+        const parsed = tryParseFrontBid(tx.input);
+        if (!parsed) continue;
+        if (parsed.manifest !== manifestHash.toLowerCase()) continue;
+        bids.push({
+          hash: tx.hash,
+          valueWei: tx.value,
+          forDay: parsed.forDay || null,
+          from: tx.from,
+        });
+      }
+    }
+    const dayBids = bids.filter((b) => b.forDay === forDay);
+    dayBids.sort((a, b) =>
+      b.valueWei > a.valueWei ? 1 : b.valueWei < a.valueWei ? -1 : 0,
+    );
+    const winner = dayBids[0];
+    const lowTx = await publicClient.getTransaction({ hash: lowBidHash });
+    const lowParsed = tryParseFrontBid(lowTx.input);
+    pass(
+      "Front-bid wire",
+      !!lowParsed &&
+        lowParsed.manifest === manifestHash.toLowerCase() &&
+        lowParsed.forDay === forDay &&
+        lowTx.value === lowWei,
+      forDay,
+    );
+    pass(
+      "Front-bid A1 winner",
+      dayBids.length >= 2 &&
+        !!winner &&
+        winner.hash.toLowerCase() === highBidHash.toLowerCase() &&
+        winner.valueWei === highWei,
+      `bids=${dayBids.length} win=${winner?.valueWei ?? "?"}`,
+    );
+
     const failed = results.filter((r) => !r.ok);
     writeFileSync(
       join(OUT, "dry-run.json"),
@@ -331,6 +406,8 @@ async function main() {
         {
           ok: failed.length === 0,
           manifestHash,
+          forDay,
+          frontBidWinner: winner?.hash || null,
           results,
           at: new Date().toISOString(),
         },

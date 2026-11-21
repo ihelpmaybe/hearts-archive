@@ -7,19 +7,19 @@
   "fonts": {
     "display": "Syne",
     "body": "DM Sans",
-    "google": "Syne:wght@600;700&family=DM+Sans:wght@400;500;600;700"
+    "google": "Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:opsz,wght@9..144,700;9..144,900"
   },
   "vars": {
-    "--bg": "#120a07",
-    "--bg-glow": "radial-gradient(900px 520px at 8% -8%, rgba(255, 138, 31, 0.28) 0%, transparent 55%), radial-gradient(700px 420px at 92% 4%, rgba(240, 199, 94, 0.18) 0%, transparent 50%)",
-    "--panel": "#1c110c",
-    "--panel-2": "#26160f",
-    "--line": "#6b4224",
-    "--line-soft": "rgba(255, 138, 31, 0.22)",
-    "--text": "#fff6ec",
-    "--muted": "#c9a888",
+    "--bg": "#100805",
+    "--bg-glow": "radial-gradient(980px 560px at 6% -12%, rgba(255, 138, 31, 0.32) 0%, transparent 58%), radial-gradient(720px 440px at 94% 0%, rgba(240, 199, 94, 0.2) 0%, transparent 52%), radial-gradient(500px 300px at 50% 110%, rgba(255, 80, 40, 0.08) 0%, transparent 55%)",
+    "--panel": "#1a100b",
+    "--panel-2": "#261710",
+    "--line": "#7a4a28",
+    "--line-soft": "rgba(255, 138, 31, 0.24)",
+    "--text": "#fff8f0",
+    "--muted": "#d0ad8c",
     "--accent": "#ff8a1f",
-    "--accent-hot": "#ffb347",
+    "--accent-hot": "#ffc06a",
     "--accent-dim": "#5c2e0a",
     "--gold": "#f0c75e",
     "--warn": "#ffc14d",
@@ -27,6 +27,8 @@
     "--ok": "#7dcea0",
     "--radius": "14px",
     "--font-display": "\"Syne\", \"Avenir Next\", sans-serif",
-    "--font-body": "\"DM Sans\", \"Segoe UI\", sans-serif"
+    "--font-body": "\"DM Sans\", \"Segoe UI\", sans-serif",
+    "--font-ui": "\"DM Sans\", \"Segoe UI\", sans-serif",
+    "--font-nameplate": "\"Fraunces\", \"Playfair Display\", Georgia, serif"
   }
 }

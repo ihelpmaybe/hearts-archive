@@ -33,11 +33,8 @@ const urls = pulseRpcList();
 
 export const config = createConfig({
   chains: [pulsechain],
+  // EIP-6963 discovers MetaMask / Phantom / etc. Generic injected = fallback only.
   connectors: [
-    injected({
-      target: "metaMask",
-      shimDisconnect: true,
-    }),
     injected({
       shimDisconnect: true,
     }),

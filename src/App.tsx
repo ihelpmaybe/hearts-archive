@@ -66,7 +66,6 @@ import {
   isOpenEdition,
   isOpenPrintedDay,
   layoutEdition,
-  listEditionDays,
   maxOpenEditionDay,
   openEditionBids,
   OPEN_HORIZON_DAYS,
@@ -393,6 +392,8 @@ export function App() {
   const [bidForDay, setBidForDay] = useState(() =>
     shiftUtcDay(utcTodayKey(), 1),
   );
+  /** Broadsheet page face — A / B / C… (not URL hash). */
+  const [paperPage, setPaperPage] = useState("A");
   const [leadPicture, setLeadPicture] = useState("");
 
   useEffect(() => {
@@ -783,111 +784,138 @@ export function App() {
   }, [refreshRecentLocal]);
 
   /** Pull …feed since last Sync (capped at 30d). Explorer only — no story bodies. */
-  const refreshLibrary = useCallback(async () => {
-    let lastSyncMs = 0;
-    try {
-      lastSyncMs = Number(
-        localStorage.getItem("hearts-archive-last-sync") || "0",
-      );
-      if (lastSyncMs && Date.now() - lastSyncMs < 20_000) {
-        setBrowseError("Sync cooling down — try again in a few seconds.");
-        return;
-      }
-    } catch {
-      /* */
-    }
-    setBrowsing(true);
-    setBrowseError(null);
-    const shelf = listShelf();
-    const [staticCat, idbCat] = await Promise.all([
-      loadLocalCatalog(),
-      listCatalog(),
-    ]);
-    const base = dedupeBySha256(
-      mergeShelfAndRemote(
-        mergeShelfAndRemote(shelf, staticCat),
-        idbCat,
-      ),
-    );
-    setEntries(base);
-    try {
-      const author = authorInput.trim();
-      const knownHashes = new Set(base.map((e) => e.hash.toLowerCase()));
-      for (const l of likes) knownHashes.add(l.hash.toLowerCase());
-      for (const f of fronts) knownHashes.add(f.hash.toLowerCase());
-
-      // Gone 29d → walk ~29d. Cap = 60d (2× schedule) so +30d posts survive a long absence.
-      // Daily user → tip only (known streak stops early). One stream, not per-day calls.
-      const cutoff = syncLookbackCutoffUnix({ lastSyncMs: lastSyncMs || null });
-      const gapSec = Math.max(0, Math.floor(Date.now() / 1000) - cutoff);
-      const gapDays = Math.min(
-        SYNC_LOOKBACK_DAYS,
-        Math.max(1, Math.ceil(gapSec / 86400)),
-      );
-      const maxItems = Math.min(800, Math.max(100, gapDays * 25));
-      const maxPages = Math.min(20, Math.max(4, Math.ceil(maxItems / 50)));
-
-      if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
-        const remote = await listArchiveFromAuthor(author as `0x${string}`, {
-          maxItems,
-          maxPages,
-          knownHashes,
-          stopOlderThanUnix: cutoff,
-        });
-        await upsertCatalog(remote);
-        setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
-        const bundle = await listSinkBundle({
-          onlyArchiveKind: false,
-          maxItems,
-          maxPages,
-          knownHashes,
-          stopOlderThanUnix: cutoff,
-        });
-        setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
-        setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
-        void upsertCachedLikes(bundle.likes);
-      } else {
-        const bundle = await listSinkBundle({
-          onlyArchiveKind: archiveOnly,
-          maxItems,
-          maxPages,
-          knownHashes,
-          stopOlderThanUnix: cutoff,
-        });
-        await upsertCatalog(bundle.entries);
-        setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
-        setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
-        setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
-        void upsertCachedLikes(bundle.likes);
-      }
+  const refreshLibrary = useCallback(
+    async (opts?: { mode?: "manual" | "publish" }) => {
+      const mode = opts?.mode ?? "manual";
+      let lastSyncMs = 0;
       try {
-        localStorage.setItem(
-          "hearts-archive-last-sync",
-          String(Date.now()),
+        lastSyncMs = Number(
+          localStorage.getItem("hearts-archive-last-sync") || "0",
         );
+        if (lastSyncMs && Date.now() - lastSyncMs < 20_000) {
+          if (mode === "manual") {
+            setBrowseError("Sync cooling down — try again in a few seconds.");
+          }
+          return;
+        }
       } catch {
         /* */
       }
-    } catch (e) {
-      const offline =
-        typeof navigator !== "undefined" && navigator.onLine === false;
-      const detail = offline
-        ? "You’re offline"
-        : e instanceof Error
-          ? e.message
-          : String(e);
-      setBrowseError(
-        detail +
-          (base.length
-            ? ` — still showing your local library (${base.length}). Try Sync later.`
-            : " — nothing local yet. Connect, then Sync when the network is up."),
+      setBrowsing(true);
+      setBrowseError(null);
+      const shelf = listShelf();
+      const [staticCat, idbCat] = await Promise.all([
+        loadLocalCatalog(),
+        listCatalog(),
+      ]);
+      const base = dedupeBySha256(
+        mergeShelfAndRemote(
+          mergeShelfAndRemote(shelf, staticCat),
+          idbCat,
+        ),
       );
       setEntries(base);
-    } finally {
-      setBrowsing(false);
-      void refreshRecentLocal();
-    }
-  }, [authorInput, archiveOnly, refreshRecentLocal, likes, fronts]);
+      try {
+        const author = authorInput.trim();
+        const knownHashes = new Set(base.map((e) => e.hash.toLowerCase()));
+        for (const l of likes) knownHashes.add(l.hash.toLowerCase());
+        for (const f of fronts) knownHashes.add(f.hash.toLowerCase());
+
+        // Cold Sync (no last sync): tip only — not a 60-day explorer crawl that aborts.
+        // Daily return: short tip. Long absence: cap at SYNC_LOOKBACK_DAYS.
+        const cold = !lastSyncMs;
+        const lookbackDays = cold ? 3 : SYNC_LOOKBACK_DAYS;
+        const cutoff = syncLookbackCutoffUnix({
+          lastSyncMs: lastSyncMs || null,
+          lookbackDays,
+        });
+        const gapSec = Math.max(0, Math.floor(Date.now() / 1000) - cutoff);
+        const gapDays = Math.min(
+          lookbackDays,
+          Math.max(1, Math.ceil(gapSec / 86400)),
+        );
+        const maxItems = cold
+          ? 60
+          : Math.min(400, Math.max(80, gapDays * 20));
+        const maxPages = cold
+          ? 2
+          : Math.min(10, Math.max(3, Math.ceil(maxItems / 50)));
+
+        if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
+          const remote = await listArchiveFromAuthor(author as `0x${string}`, {
+            maxItems,
+            maxPages,
+            knownHashes,
+            stopOlderThanUnix: cutoff,
+          });
+          await upsertCatalog(remote);
+          setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
+          const bundle = await listSinkBundle({
+            onlyArchiveKind: false,
+            maxItems,
+            maxPages,
+            knownHashes,
+            stopOlderThanUnix: cutoff,
+          });
+          setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+          setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
+          void upsertCachedLikes(bundle.likes);
+        } else {
+          const bundle = await listSinkBundle({
+            onlyArchiveKind: archiveOnly,
+            maxItems,
+            maxPages,
+            knownHashes,
+            stopOlderThanUnix: cutoff,
+          });
+          await upsertCatalog(bundle.entries);
+          setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
+          setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
+          setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
+          void upsertCachedLikes(bundle.likes);
+        }
+        try {
+          localStorage.setItem(
+            "hearts-archive-last-sync",
+            String(Date.now()),
+          );
+        } catch {
+          /* */
+        }
+      } catch (e) {
+        const offline =
+          typeof navigator !== "undefined" && navigator.onLine === false;
+        const raw = e instanceof Error ? e.message : String(e);
+        const aborted =
+          (e instanceof Error && e.name === "AbortError") ||
+          /aborted|AbortError/i.test(raw);
+        const detail = offline
+          ? "You’re offline"
+          : aborted
+            ? "Pulse explorer timed out"
+            : raw || "Sync failed";
+        // Empty paper: stay quiet — Sync is optional; don’t dump AbortError theater
+        if (!base.length) {
+          setBrowseError(
+            mode === "manual"
+              ? aborted
+                ? "Couldn’t reach Pulse explorer — try again in a bit."
+                : `${detail} — nothing on this device yet.`
+              : null,
+          );
+        } else {
+          setBrowseError(
+            `${detail} — still showing your local library (${base.length}).`,
+          );
+        }
+        setEntries(base);
+      } finally {
+        setBrowsing(false);
+        void refreshRecentLocal();
+      }
+    },
+    [authorInput, archiveOnly, refreshRecentLocal, likes, fronts],
+  );
 
   useEffect(() => {
     const fromRoute = parseRouteHash(window.location.hash);
@@ -990,11 +1018,9 @@ export function App() {
           [...loadLocalFronts(), ...prev].filter((b) => !isRetiredFront(b)),
         ),
       );
-      let seeded = false;
       if (isLabMode()) {
         const seed = await loadLabSeed();
         if (seed) {
-          seeded = true;
           setLabNote(seed.meta.note);
           setLikes((prev) => dedupeLikes([...seed.likes, ...prev]));
           // Don’t let Lab seed steal A1 on a day you already bid
@@ -1012,10 +1038,7 @@ export function App() {
         }
       }
       await loadLocalLibrary();
-      const cat = await listCatalog();
-      if (cat.length === 0 && !seeded) {
-        await refreshLibrary();
-      }
+      // No auto-Sync — explorer crawls abort on cold loads. User hits Sync when ready.
       await refreshRecentLocal();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1149,7 +1172,6 @@ export function App() {
   );
 
   const frontWinner = openPress.front;
-  const editionDays = useMemo(() => listEditionDays(fronts), [fronts]);
   const minOpenDay = useMemo(() => shiftUtcDay(utcTodayKey(), 1), []);
   const maxOpenDay = useMemo(() => maxOpenEditionDay(), []);
   const a1PriceHint = useMemo(
@@ -1481,7 +1503,7 @@ export function App() {
       window.location.hash = sharePath(manifestHash);
       setTab("library");
       await load(manifestHash);
-      void refreshLibrary();
+      void refreshLibrary({ mode: "publish" });
     } catch (e) {
       setPubError(e instanceof Error ? e.message : String(e));
       setIncomplete(loadIncomplete());
@@ -1965,168 +1987,98 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [tab, press.flat, doc, load, closeReader]);
 
-  const editionDate = useMemo(() => {
-    const key = editionCursor(editionDay);
-    const [y, m, d] = key.split("-").map(Number);
+  const todayKey = utcTodayKey();
+  const yesterdayKey = shiftUtcDay(todayKey, -1);
+  const tomorrowKey = shiftUtcDay(todayKey, 1);
+  const maxOpenKey = maxOpenEditionDay(todayKey);
+  const minPastKey = shiftUtcDay(todayKey, -SYNC_LOOKBACK_DAYS);
+  const editionCursorKey = editionCursor(editionDay);
+  const pastDisplayKey =
+    editionCursorKey < todayKey ? editionCursorKey : yesterdayKey;
+  const futureDisplayKey =
+    editionCursorKey > todayKey ? editionCursorKey : tomorrowKey;
+
+  // Keep cursor inside lookback … open horizon
+  useEffect(() => {
+    const c = editionCursor(editionDay);
+    if (c > maxOpenKey) {
+      setEditionDay(maxOpenKey);
+      setBidForDay(maxOpenKey);
+    } else if (c < minPastKey) {
+      setEditionDay(minPastKey);
+    }
+  }, [editionDay, maxOpenKey, minPastKey]);
+
+  function formatEditionShort(dayKey: string) {
+    const [y, m, d] = dayKey.split("-").map(Number);
     const months = [
-      "JANUARY",
-      "FEBRUARY",
-      "MARCH",
-      "APRIL",
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
       "MAY",
-      "JUNE",
-      "JULY",
-      "AUGUST",
-      "SEPTEMBER",
-      "OCTOBER",
-      "NOVEMBER",
-      "DECEMBER",
+      "JUN",
+      "JUL",
+      "AUG",
+      "SEP",
+      "OCT",
+      "NOV",
+      "DEC",
     ];
     return `${months[(m || 1) - 1]} ${d}, ${y}`;
-  }, [editionDay]);
+  }
+
+  function pickEditionDay(day: string) {
+    setEditionDay(day);
+    setPaperPage("A");
+    if (day > todayKey) setBidForDay(day);
+  }
+
+  /** Step one day further into the past (or jump to yesterday from today/future). */
+  function stepEditionPast() {
+    const next =
+      editionCursorKey > yesterdayKey
+        ? yesterdayKey
+        : shiftUtcDay(editionCursorKey, -1);
+    if (next < minPastKey) return;
+    pickEditionDay(next);
+  }
+
+  /** Step one day further into the future (or jump to tomorrow from today/past). */
+  function stepEditionFuture() {
+    const next =
+      editionCursorKey < tomorrowKey
+        ? tomorrowKey
+        : shiftUtcDay(editionCursorKey, 1);
+    if (next > maxOpenKey) return;
+    pickEditionDay(next);
+  }
 
   const a2Slot = press.aFace?.[1] || null;
   const a3Slot = press.aFace?.[2] || null;
-  const insideBands = groupInsideByLetter(press.inside || []);
+  // Open paper: only bid-backed inside makes a B/C page (unbid fillers ≠ a page).
+  // Final: full ranked inside.
+  const faceInside = (press.inside || []).filter((s) =>
+    editionOpen ? !!s.bid : true,
+  );
+  const insideBands = groupInsideByLetter(faceInside).filter(
+    (b) => b.slots.length > 0,
+  );
+  const hasSectionA = !!(press.lead || a2Slot || a3Slot);
+  const sectionPages = [
+    ...(hasSectionA ? ["A"] : []),
+    ...insideBands.map((b) => b.letter),
+  ];
+  const activePage = sectionPages.includes(paperPage)
+    ? paperPage
+    : sectionPages[0] || "A";
+  const activeInside = insideBands.find((b) => b.letter === activePage);
 
   return (
     <div className="app">
       <div className="rail">
-        {tab === "library" ? (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              setWriteMode("compose");
-              setTab("post");
-            }}
-          >
-            Write
-            {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => {
-              setWriteMode("compose");
-              setTab("library");
-            }}
-          >
-            Front page
-          </button>
-        )}
-        <button
-          type="button"
-          className="ghost"
-          disabled={browsing}
-          onClick={() => void refreshLibrary()}
-        >
-          {browsing ? "…" : "Sync"}
-        </button>
-        <ThemePicker />
-        {!walletUiOff && (
-          <WalletBar
-            onUseAsAuthor={(a) => {
-              setAuthorInput(a);
-              setTab("library");
-            }}
-          />
-        )}
-        {deskFace && (
-          <span
-            className="meta rail-lab"
-            title="Desk face — local publish, no wallet gate. Press = npm run build or npm run dev:press"
-          >
-            Desk
-          </span>
-        )}
-        {!deskFace && labOn && (
-          <span
-            className="meta rail-lab"
-            title="Lab seed on — wallet chrome off until you uncheck Lab"
-          >
-            Lab · wallet off
-          </span>
-        )}
-      </div>
-
-      {/* Masthead + edition ← → only on the front — not while reading (that ← looked like Back) */}
-      {tab === "library" && !doc && (
-        <header className="masthead">
-          <div className="ornament-bar" aria-hidden>
-            <span>Archive edition</span>
-            <span className="ornament">⬢ ⬡ ⬡ ⬡ ⬢</span>
-            <span>Archive edition</span>
-          </div>
-          <h1 className="nameplate">Heart’s Archive</h1>
-          <hr className="double-rule" />
-          <div className="edition-line">
-            <span>Est · Pulse</span>
-            <span>On-chain press</span>
-            <span className="edition-nav">
-              <button
-                type="button"
-                className="edition-arrow"
-                aria-label="Earlier edition"
-                title="Earlier"
-                disabled={
-                  editionCursor(editionDay) <=
-                  (editionDays[editionDays.length - 1] ||
-                    shiftUtcDay(utcTodayKey(), -30))
-                }
-                onClick={() => {
-                  const c = editionCursor(editionDay);
-                  const today = utcTodayKey();
-                  const prev = shiftUtcDay(c, -1);
-                  setEditionDay(prev);
-                  if (prev > today) setBidForDay(prev);
-                }}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                className="edition-date-btn"
-                title={
-                  editionOpen
-                    ? `Open paper — A1 up to +${OPEN_HORIZON_DAYS}d (Sync tip)`
-                    : "Jump to today’s closed final"
-                }
-                onClick={() => setEditionDay(utcTodayKey())}
-              >
-                {editionDate}
-                {editionOpen ? " · Open" : " · Final"}
-              </button>
-              <button
-                type="button"
-                className="edition-arrow"
-                aria-label="Later open edition"
-                title={`Later open (max +${OPEN_HORIZON_DAYS}d)`}
-                disabled={editionCursor(editionDay) >= maxOpenDay}
-                onClick={() => {
-                  const today = utcTodayKey();
-                  const c = editionCursor(editionDay);
-                  const next =
-                    c <= today
-                      ? shiftUtcDay(today, 1)
-                      : shiftUtcDay(c, 1);
-                  if (next > maxOpenDay) return;
-                  setEditionDay(next);
-                  setBidForDay(next);
-                }}
-              >
-                →
-              </button>
-            </span>
-          </div>
-          <hr className="double-rule" />
-        </header>
-      )}
-
-      {tab === "library" && (
-        <section className="panel page library-page">
-          <details className="filters-drawer">
+        {tab === "library" && (
+          <details className="filters-drawer filters-drawer--rail">
             <summary>Search &amp; tools</summary>
             <div className="filters-body">
               <input
@@ -2287,6 +2239,129 @@ export function App() {
               </details>
             </div>
           </details>
+        )}
+        <div className="rail-actions">
+        {tab === "library" ? (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setWriteMode("compose");
+              setTab("post");
+            }}
+          >
+            Write
+            {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => {
+              setWriteMode("compose");
+              setTab("library");
+            }}
+          >
+            Front page
+          </button>
+        )}
+        <button
+          type="button"
+          className="ghost"
+          disabled={browsing}
+          onClick={() => void refreshLibrary({ mode: "manual" })}
+        >
+          {browsing ? "…" : "Sync"}
+        </button>
+        <ThemePicker />
+        {!walletUiOff && (
+          <WalletBar
+            onUseAsAuthor={(a) => {
+              setAuthorInput(a);
+              setTab("library");
+            }}
+          />
+        )}
+        {deskFace && (
+          <span
+            className="meta rail-lab"
+            title="Desk face — local publish, no wallet gate. Press = npm run build or npm run dev:press"
+          >
+            Desk
+          </span>
+        )}
+        {!deskFace && labOn && (
+          <span
+            className="meta rail-lab"
+            title="Lab seed on — wallet chrome off until you uncheck Lab"
+          >
+            Lab · wallet off
+          </span>
+        )}
+        </div>
+      </div>
+
+      {/* Classic masthead — ornament + nameplate; day strip under the rule */}
+      {tab === "library" && !doc && (
+        <header className="masthead">
+          <div
+            className="ornament-bar ornament-bar--days"
+            role="group"
+            aria-label="Edition day"
+          >
+            <button
+              type="button"
+              className={
+                editionCursorKey < todayKey
+                  ? "edition-day-btn is-active"
+                  : "edition-day-btn"
+              }
+              onClick={stepEditionPast}
+              title={`${pastDisplayKey} · Final · click again for earlier`}
+            >
+              <span className="edition-day-label">Yesterday</span>
+              <span className="edition-day-date">
+                {formatEditionShort(pastDisplayKey)} · Final
+              </span>
+            </button>
+            <button
+              type="button"
+              className={
+                editionCursorKey === todayKey
+                  ? "edition-day-btn is-active"
+                  : "edition-day-btn"
+              }
+              onClick={() => pickEditionDay(todayKey)}
+              title={`${todayKey} · Final`}
+            >
+              <span className="edition-day-label">Today</span>
+              <span className="edition-day-date">
+                {formatEditionShort(todayKey)} · Final
+              </span>
+            </button>
+            <button
+              type="button"
+              className={
+                editionCursorKey > todayKey
+                  ? "edition-day-btn is-active"
+                  : "edition-day-btn"
+              }
+              onClick={stepEditionFuture}
+              title={`${futureDisplayKey} · Open A1 · click again for later`}
+            >
+              <span className="edition-day-label">Tomorrow</span>
+              <span className="edition-day-date">
+                {formatEditionShort(futureDisplayKey)} · Open
+              </span>
+            </button>
+          </div>
+          <h1 className="nameplate">Heart’s Archive</h1>
+          <hr className="single-rule masthead-rule" />
+        </header>
+      )}
+
+      {tab === "library" && (
+        <section className="panel page library-page">
           {backupMsg && <p className="meta">{backupMsg}</p>}
           {frontOk && <p className="status ok">{frontOk}</p>}
           {frontError && <p className="status bad">{frontError}</p>}
@@ -2309,164 +2384,210 @@ export function App() {
                 </div>
               ) : (
                 <div className="broadsheet">
-                  {press.lead ? (
-                    <>
-                      <SoftHeld
-                        hit={softMuteHit(
-                          press.lead.entry.title,
-                          press.lead.entry.summary,
-                          leadPicture,
-                        )}
-                      >
-                        <button
-                          type="button"
-                          className="a1-banner"
-                          onClick={() => void load(press.lead!.entry.hash)}
-                        >
-                          <span className="a1-hed">
-                            {press.lead.entry.title}
-                          </span>
-                          {press.lead.entry.summary && (
-                            <span className="a1-dek">
-                              {press.lead.entry.summary}
-                            </span>
-                          )}
-                        </button>
-                      </SoftHeld>
-                      {leadPicture.trim() ? (
-                        <button
-                          type="button"
-                          className="a1-cut"
-                          onClick={() => void load(press.lead!.entry.hash)}
-                          aria-label="Open lead story"
-                        >
-                          <TypeCutPicture
-                            text={leadPicture}
-                            className="a1-cut-pic"
-                          />
-                        </button>
-                      ) : null}
-                      <p className="a1-byline">
-                        By {shortAddr(press.lead.entry.from)}
-                        {formatPostedAt(press.lead.entry.timeStamp)
-                          ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
-                          : ""}
-                        {press.front &&
-                        press.front.manifest.toLowerCase() ===
-                          press.lead.entry.hash.toLowerCase()
-                          ? editionOpen
-                            ? ` · A1 ${formatPls(press.front.valueWei)} PLS (open)`
-                            : ` · A1 ${formatPls(press.front.valueWei)} PLS (final)`
-                          : ""}
-                        {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
-                        {" · Continued inside →"}
-                      </p>
-                    </>
-                  ) : editionOpen ? (
-                    <div className="a1-unpublished">
-                      <p className="a1-hed">Tomorrow’s paper — unpublished</p>
-                      <p className="a1-dek">
-                        No A1 bid yet today. Bid PLS on a story to set the lead
-                        before UTC midnight.
-                      </p>
-                    </div>
-                  ) : null}
-                  <hr className="single-rule" />
-                  {(a2Slot || a3Slot) && (
-                    <div className="a1-grid a1-grid--secondary">
-                      {a2Slot && (
-                        <div className="a1-col">
-                          <SoftHeld
-                            hit={softMuteHit(
-                              a2Slot.card.entry.title,
-                              a2Slot.card.entry.summary,
-                            )}
-                          >
-                            <button
-                              type="button"
-                              className="story-item lead-col"
-                              onClick={() => void load(a2Slot.card.entry.hash)}
-                            >
-                              <span className="slot-kicker">
-                                A2
-                                {a2Slot.bid
-                                  ? ` · ${formatPls(a2Slot.bid.valueWei)} PLS`
-                                  : ""}
-                              </span>
-                              <span className="a1-col-hed">
-                                {a2Slot.card.entry.title}
-                              </span>
-                              {a2Slot.card.entry.summary && (
-                                <span className="story-dek">
-                                  {a2Slot.card.entry.summary}
-                                </span>
-                              )}
-                              <span className="story-meta">
-                                {shortAddr(a2Slot.card.entry.from)} ·{" "}
-                                {likeCounts.get(
-                                  a2Slot.card.entry.hash.toLowerCase(),
-                                ) || 0}{" "}
-                                likes
-                              </span>
-                            </button>
-                          </SoftHeld>
-                        </div>
-                      )}
-                      {a3Slot && (
-                        <div className="a1-col a1-col-mid">
-                          <SoftHeld
-                            hit={softMuteHit(
-                              a3Slot.card.entry.title,
-                              a3Slot.card.entry.summary,
-                            )}
-                          >
-                            <button
-                              type="button"
-                              className="story-item mid-wrap"
-                              onClick={() => void load(a3Slot.card.entry.hash)}
-                            >
-                              <span className="slot-kicker">
-                                A3
-                                {a3Slot.bid
-                                  ? ` · ${formatPls(a3Slot.bid.valueWei)} PLS`
-                                  : ""}
-                              </span>
-                              {a3Slot.card.entry.summary && (
-                                <span className="story-dek mid-dek-top">
-                                  {a3Slot.card.entry.summary.slice(0, 120)}
-                                  {a3Slot.card.entry.summary.length > 120
-                                    ? "…"
-                                    : ""}
-                                </span>
-                              )}
-                              <span className="story-hed mid-hed">
-                                {a3Slot.card.entry.title}
-                              </span>
-                              <span className="story-meta">
-                                {shortAddr(a3Slot.card.entry.from)}
-                              </span>
-                            </button>
-                          </SoftHeld>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {insideBands.map(({ letter, slots }) => (
-                    <section
-                      key={letter}
-                      className="section-band"
-                      aria-label={`Section ${letter}`}
+                  {(hasSectionA ||
+                    insideBands.length > 0 ||
+                    (editionOpen && !press.lead)) && (
+                    <nav
+                      className="section-pages"
+                      aria-label="Edition pages A B C"
                     >
-                      <p className="section-band-hed">
-                        Section {letter}
-                        <span className="section-band-note">
-                          {letter === "B"
+                      <span className="section-pages-kicker">Section</span>
+                      {(sectionPages.length ? sectionPages : ["A"]).map(
+                        (letter) =>
+                          sectionPages.length > 1 ? (
+                            <button
+                              key={letter}
+                              type="button"
+                              className={
+                                letter === activePage
+                                  ? "section-page-link is-active"
+                                  : "section-page-link"
+                              }
+                              onClick={() => setPaperPage(letter)}
+                            >
+                              {letter}
+                            </button>
+                          ) : (
+                            <span
+                              key={letter}
+                              className="section-page-link is-active"
+                            >
+                              {letter}
+                            </span>
+                          ),
+                      )}
+                      <span className="section-band-note">
+                        {activePage === "A"
+                          ? " · front · A1–A3"
+                          : activePage === "B"
                             ? " · after A1–A3"
-                            : ` · continues after ${String.fromCharCode(letter.charCodeAt(0) - 1)}`}
-                        </span>
-                      </p>
+                            : ` · continues after ${String.fromCharCode(activePage.charCodeAt(0) - 1)}`}
+                      </span>
+                    </nav>
+                  )}
+                  {(activePage === "A" ||
+                    (!sectionPages.length && editionOpen && !press.lead)) &&
+                    (hasSectionA || (editionOpen && !press.lead)) && (
+                    <section
+                      className="section-band section-band--a"
+                      aria-label="Section A"
+                    >
+                      {press.lead ? (
+                        <>
+                          <SoftHeld
+                            hit={softMuteHit(
+                              press.lead.entry.title,
+                              press.lead.entry.summary,
+                              leadPicture,
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className="a1-banner"
+                              onClick={() => void load(press.lead!.entry.hash)}
+                            >
+                              <span className="a1-hed">
+                                {press.lead.entry.title}
+                              </span>
+                              {press.lead.entry.summary && (
+                                <span className="a1-dek">
+                                  {press.lead.entry.summary}
+                                </span>
+                              )}
+                            </button>
+                          </SoftHeld>
+                          {leadPicture.trim() ? (
+                            <button
+                              type="button"
+                              className="a1-cut"
+                              onClick={() => void load(press.lead!.entry.hash)}
+                              aria-label="Open lead story"
+                            >
+                              <TypeCutPicture
+                                text={leadPicture}
+                                className="a1-cut-pic"
+                              />
+                            </button>
+                          ) : null}
+                          <p className="a1-byline">
+                            By {shortAddr(press.lead.entry.from)}
+                            {formatPostedAt(press.lead.entry.timeStamp)
+                              ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
+                              : ""}
+                            {press.front &&
+                            press.front.manifest.toLowerCase() ===
+                              press.lead.entry.hash.toLowerCase()
+                              ? editionOpen
+                                ? ` · A1 ${formatPls(press.front.valueWei)} PLS (open)`
+                                : ` · A1 ${formatPls(press.front.valueWei)} PLS (final)`
+                              : ""}
+                            {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
+                            {" · Continued inside →"}
+                          </p>
+                        </>
+                      ) : editionOpen ? (
+                        <div className="a1-unpublished">
+                          <p className="a1-hed">
+                            Tomorrow’s paper — unpublished
+                          </p>
+                          <p className="a1-dek">
+                            No A1 bid yet today. Bid PLS on a story to set the
+                            lead before UTC midnight.
+                          </p>
+                        </div>
+                      ) : null}
+                      {(a2Slot || a3Slot) && (
+                        <div className="a1-grid a1-grid--secondary">
+                          {a2Slot && (
+                            <div className="a1-col">
+                              <SoftHeld
+                                hit={softMuteHit(
+                                  a2Slot.card.entry.title,
+                                  a2Slot.card.entry.summary,
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  className="story-item lead-col"
+                                  onClick={() =>
+                                    void load(a2Slot.card.entry.hash)
+                                  }
+                                >
+                                  <span className="slot-kicker">
+                                    A2
+                                    {a2Slot.bid
+                                      ? ` · ${formatPls(a2Slot.bid.valueWei)} PLS`
+                                      : ""}
+                                  </span>
+                                  <span className="a1-col-hed">
+                                    {a2Slot.card.entry.title}
+                                  </span>
+                                  {a2Slot.card.entry.summary && (
+                                    <span className="story-dek">
+                                      {a2Slot.card.entry.summary}
+                                    </span>
+                                  )}
+                                  <span className="story-meta">
+                                    {shortAddr(a2Slot.card.entry.from)} ·{" "}
+                                    {likeCounts.get(
+                                      a2Slot.card.entry.hash.toLowerCase(),
+                                    ) || 0}{" "}
+                                    likes
+                                  </span>
+                                </button>
+                              </SoftHeld>
+                            </div>
+                          )}
+                          {a3Slot && (
+                            <div className="a1-col a1-col-mid">
+                              <SoftHeld
+                                hit={softMuteHit(
+                                  a3Slot.card.entry.title,
+                                  a3Slot.card.entry.summary,
+                                )}
+                              >
+                                <button
+                                  type="button"
+                                  className="story-item mid-wrap"
+                                  onClick={() =>
+                                    void load(a3Slot.card.entry.hash)
+                                  }
+                                >
+                                  <span className="slot-kicker">
+                                    A3
+                                    {a3Slot.bid
+                                      ? ` · ${formatPls(a3Slot.bid.valueWei)} PLS`
+                                      : ""}
+                                  </span>
+                                  {a3Slot.card.entry.summary && (
+                                    <span className="story-dek mid-dek-top">
+                                      {a3Slot.card.entry.summary.slice(0, 120)}
+                                      {a3Slot.card.entry.summary.length > 120
+                                        ? "…"
+                                        : ""}
+                                    </span>
+                                  )}
+                                  <span className="story-hed mid-hed">
+                                    {a3Slot.card.entry.title}
+                                  </span>
+                                  <span className="story-meta">
+                                    {shortAddr(a3Slot.card.entry.from)}
+                                  </span>
+                                </button>
+                              </SoftHeld>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  )}
+                  {activeInside && (
+                    <section
+                      className="section-band"
+                      aria-label={`Section ${activeInside.letter}`}
+                    >
                       <div className="section-band-grid">
-                        {slots.map((s) => (
+                        {activeInside.slots.map((s) => (
                           <SoftHeld
                             key={s.card.entry.hash}
                             hit={softMuteHit(
@@ -2502,7 +2623,7 @@ export function App() {
                         ))}
                       </div>
                     </section>
-                  ))}
+                  )}
                   {!press.lead &&
                     !a2Slot &&
                     !a3Slot &&

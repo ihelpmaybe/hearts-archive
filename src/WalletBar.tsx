@@ -18,8 +18,22 @@ function shortAddr(a: string) {
 function connectorLabel(name: string) {
   const n = name.toLowerCase();
   if (n.includes("metamask")) return "MetaMask";
-  if (n.includes("injected")) return "Browser";
+  if (n.includes("rabby")) return "Rabby";
+  if (n.includes("injected") || n === "browser") return "Browser";
   return name;
+}
+
+function isGenericInjected(name: string) {
+  const l = connectorLabel(name).toLowerCase();
+  return l === "browser" || l === "injected";
+}
+
+/** PulseChain is custom EVM — Phantom (and similar) don’t carry chain 369. */
+function isPulseCapableWallet(name: string) {
+  const n = name.toLowerCase();
+  if (n.includes("phantom")) return false;
+  if (n.includes("solana")) return false;
+  return true;
 }
 
 type Props = {
@@ -80,12 +94,17 @@ export function WalletBar({ onUseAsAuthor }: Props) {
 
   const uniqueConnectors = useMemo(() => {
     const seen = new Set<string>();
-    return connectors.filter((c) => {
-      const key = c.id || c.name;
+    const usable = connectors.filter((c) => isPulseCapableWallet(c.name));
+    const deduped = usable.filter((c) => {
+      const key = connectorLabel(c.name).toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
+    // Drop generic “Browser” when MetaMask/Rabby/… already listed
+    const hasNamed = deduped.some((c) => !isGenericInjected(c.name));
+    if (!hasNamed) return deduped;
+    return deduped.filter((c) => !isGenericInjected(c.name));
   }, [connectors]);
 
   return (

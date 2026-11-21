@@ -166,6 +166,27 @@ export function likeCalldata(manifestHash) {
   );
 }
 
+function isDayKey(s) {
+  return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+/** Front-page bid calldata — matches app `sendFrontBid` / `tryParseFrontBid`. */
+export function frontBidCalldata(manifestHash, forDay) {
+  const payload = {
+    kind: "pulse-archive-front",
+    app: APP_NAME,
+    appVersion: APP_VERSION,
+    manifest: String(manifestHash).toLowerCase(),
+  };
+  if (forDay) {
+    if (!isDayKey(forDay)) {
+      throw new Error("Front-page bid forDay must be YYYY-MM-DD");
+    }
+    payload.forDay = forDay;
+  }
+  return utf8ToHex(JSON.stringify(payload));
+}
+
 export function tryParseLike(input) {
   try {
     if (!input || input === "0x") return null;
@@ -180,6 +201,29 @@ export function tryParseLike(input) {
     return {
       kind: "pulse-archive-like",
       manifest: obj.manifest.toLowerCase(),
+      app: obj.app,
+      appVersion: obj.appVersion,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function tryParseFrontBid(input) {
+  try {
+    if (!input || input === "0x") return null;
+    const obj = JSON.parse(hexToUtf8(input));
+    if (obj?.kind !== "pulse-archive-front") return null;
+    if (
+      typeof obj.manifest !== "string" ||
+      !/^0x[a-fA-F0-9]{64}$/i.test(obj.manifest)
+    ) {
+      return null;
+    }
+    return {
+      kind: "pulse-archive-front",
+      manifest: obj.manifest.toLowerCase(),
+      ...(isDayKey(obj.forDay) ? { forDay: obj.forDay } : {}),
       app: obj.app,
       appVersion: obj.appVersion,
     };
