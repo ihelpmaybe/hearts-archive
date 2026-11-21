@@ -3,6 +3,7 @@
  * Local anvil only. No Pulse trail.
  *
  *   node sim/front-spam.mjs
+ *   node sim/front-spam.mjs --quick   # skip 80-dust grief (faster gate)
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
@@ -44,6 +45,7 @@ const FOUNDRY_BIN = join(
 const PORT = 8552;
 const RPC = `http://127.0.0.1:${PORT}`;
 const ACCOUNTS = 40;
+const QUICK = process.argv.includes("--quick");
 
 const anvilChain = defineChain({
   id: 31337,
@@ -144,7 +146,9 @@ async function main() {
     console.log(`  note [${severity}] ${name} — ${detail}`);
   };
 
-  console.log(`Front-bid attack spam · :${PORT} · ${ACCOUNTS} wallets\n`);
+  console.log(
+    `Front-bid attack spam · :${PORT} · ${ACCOUNTS} wallets${QUICK ? " · quick" : ""}\n`,
+  );
 
   const anvil = spawn(
     anvilExe(),
@@ -529,7 +533,10 @@ async function main() {
     }
 
     // 8) Sink spam volume — 80 tiny bids (grief inbox, ranking still coherent)
-    {
+    if (QUICK) {
+      note("info", "80-dust skipped", "--quick mode");
+      pass("80-dust + closer still correct", true, "skipped --quick");
+    } else {
       const m = stories[2];
       const jobs = [];
       for (let i = 0; i < 80; i++) {

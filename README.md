@@ -43,7 +43,7 @@ Desk vs Press = same repo, two faces — not two GitHubs.
 | **Press** (people) | `npm run build` / `dev:press` | on | on-chain to `…feed` |
 
 ```bash
-npm run check      # typecheck · lint · unit · smoke · lab
+npm run check      # typecheck · lint · unit · smoke · lab · dry (A1)
 npm run build      # static Press bundle (dist/)
 ```
 

@@ -37,6 +37,11 @@ const steps = [
     name: "lab",
     args: [join(root, "sim/lab.mjs")],
   },
+  {
+    // Short A1 gate (Post→Sync→Like→Tip→Front-bid). Full spam: npm run sim:front-spam
+    name: "dry",
+    args: [join(root, "sim/dry-run.mjs")],
+  },
 ];
 
 let failed = 0;

@@ -54,7 +54,7 @@ Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`
 ## Verify locally
 
 ```bash
-npm run check      # tsc + lint + unit + smoke + lab
+npm run check      # tsc + lint + unit + smoke + lab + dry (A1 gate)
 npm run sim:dry    # Post → Sync → Like → Tip → Front-bid (A1) on anvil
 npm run sim:seed   # news + book + 3-card series → public/lab-seed.json
 npm run dev        # :5177

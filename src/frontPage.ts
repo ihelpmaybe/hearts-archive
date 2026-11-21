@@ -240,7 +240,7 @@ export function formatFrontPriceHint(
   forDayLabel = "Open",
 ): string {
   if (stats.count === 0 || stats.currentWei == null || stats.avgWei == null) {
-    return `${forDayLabel} A1–A3 open — PLS only (not gas · rebid until that day’s UTC midnight). Tip the writer anything.`;
+    return `${forDayLabel} A1–A3 open — bid PLS to own the lead (not gas). Rebid until that day’s UTC midnight. Like ≠ tip ≠ bid.`;
   }
-  return `${forDayLabel} A1 ${formatPls(stats.currentWei)} PLS · avg ${formatPls(stats.avgWei)} PLS (${stats.count}) — top 3 bids = A1–A3 · next = B1+ — PLS only, not gas.`;
+  return `${forDayLabel} A1 ${formatPls(stats.currentWei)} PLS · need >${formatPls(stats.takeWei - 1n)} to take lead · avg ${formatPls(stats.avgWei)} (${stats.count}) · top 3 = A1–A3 · next B1+ · PLS only`;
 }

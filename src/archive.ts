@@ -116,7 +116,22 @@ function pageQuery(params?: PageParams | null): string {
   return s ? `&${s}` : "";
 }
 
-async function fetchAddressTxPage(
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRetryableExplorer(err: unknown): boolean {
+  if (err instanceof Error) {
+    if (err.name === "AbortError") return true;
+    const m = err.message || "";
+    if (/aborted|timeout|Failed to fetch|NetworkError|HTTP 5\d\d/i.test(m)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function fetchAddressTxPageOnce(
   address: string,
   opts: { limit: number; pageParams?: PageParams | null },
 ): Promise<{ items: V2Tx[]; next: PageParams | null }> {
@@ -141,6 +156,25 @@ async function fetchAddressTxPage(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** One explorer page with backoff — timeouts/5xx retry; 4xx fail fast. */
+async function fetchAddressTxPage(
+  address: string,
+  opts: { limit: number; pageParams?: PageParams | null },
+): Promise<{ items: V2Tx[]; next: PageParams | null }> {
+  const attempts = 3;
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetchAddressTxPageOnce(address, opts);
+    } catch (e) {
+      last = e;
+      if (!isRetryableExplorer(e) || i === attempts - 1) throw e;
+      await sleep(400 * (i + 1) * (i + 1));
+    }
+  }
+  throw last instanceof Error ? last : new Error(String(last));
 }
 
 /** Page through Blockscout until maxItems or no next page. */
@@ -174,6 +208,7 @@ export async function fetchAddressTxsPaged(
   const seen = new Set<string>();
   let pageParams: PageParams | null = null;
   let knownStreak = 0;
+  let archiveHits = 0;
 
   for (let page = 0; page < maxPages && out.length < maxItems; page++) {
     if (page > 0 && pageGapMs > 0) {
@@ -201,6 +236,18 @@ export async function fetchAddressTxsPaged(
       }
 
       out.push(tx);
+      // Count parseable archive/like/front payloads — spam dust without JSON
+      // still burns pages, but we can early-exit once we have enough signal.
+      if (tx.raw_input && tx.raw_input !== "0x") {
+        try {
+          const raw = tx.raw_input as Hex;
+          if (tryParseManifest(raw) || tryParseLike(raw) || tryParseFrontBid(raw)) {
+            archiveHits += 1;
+          }
+        } catch {
+          /* */
+        }
+      }
       if (known && stopAfterKnown > 0) {
         if (known.has(h)) {
           knownStreak += 1;
@@ -212,6 +259,11 @@ export async function fetchAddressTxsPaged(
         }
       }
       if (out.length >= maxItems) break;
+    }
+    // Under a grief flood of empty/value-only txs, stop once we already
+    // collected a healthy set of real archive signals this Sync.
+    if (archiveHits >= Math.min(80, maxItems) && page >= 2) {
+      break;
     }
     if (!next) break;
     pageParams = next;
@@ -393,6 +445,7 @@ export async function listSinkBundle(opts?: {
   stopAfterKnown?: number;
   /** Newest-first: stop when txs are older than this unix time. */
   stopOlderThanUnix?: number;
+  pageGapMs?: number;
 }): Promise<{
   entries: ArchiveEntry[];
   likes: LikeEntry[];
@@ -406,6 +459,7 @@ export async function listSinkBundle(opts?: {
     knownHashes: opts?.knownHashes,
     stopAfterKnown: opts?.stopAfterKnown ?? (opts?.knownHashes ? 5 : 0),
     stopOlderThanUnix: opts?.stopOlderThanUnix,
+    pageGapMs: opts?.pageGapMs,
   });
   return {
     entries: collectManifests(rows, {
@@ -431,6 +485,8 @@ export async function listArchiveFromAuthor(
     maxPages?: number;
     knownHashes?: Set<string>;
     stopOlderThanUnix?: number;
+    stopAfterKnown?: number;
+    pageGapMs?: number;
   },
 ): Promise<ArchiveEntry[]> {
   const maxItems = opts?.maxItems ?? 150;
@@ -440,7 +496,9 @@ export async function listArchiveFromAuthor(
     maxPages: opts?.maxPages ?? (maxItems > 150 ? 16 : 6),
     stopOlderThanUnix: opts?.stopOlderThanUnix,
     knownHashes: opts?.knownHashes,
-    stopAfterKnown: opts?.knownHashes ? 8 : 0,
+    stopAfterKnown:
+      opts?.stopAfterKnown ?? (opts?.knownHashes ? 8 : 0),
+    pageGapMs: opts?.pageGapMs,
   });
   return collectManifests(rows, { onlyFrom: author });
 }

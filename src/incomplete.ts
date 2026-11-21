@@ -20,6 +20,9 @@ export type IncompletePublish = {
   license: string;
   replaces: string;
   cw: boolean;
+  /** Packed article text so Retry can restore body/picture after reload. */
+  bodyText?: string;
+  pictureText?: string;
   savedAt: number;
 };
 

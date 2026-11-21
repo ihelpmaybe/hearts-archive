@@ -27,6 +27,7 @@
     "sim:lab": "node sim/lab.mjs",
     "sim:dry": "node sim/dry-run.mjs",
     "sim:front-spam": "node sim/front-spam.mjs",
+    "sim:front-spam:quick": "node sim/front-spam.mjs --quick",
     "sim:seed": "node sim/seed-news.mjs",
     "mcp:themes": "node mcp-themes/server.mjs"
   },

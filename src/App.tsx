@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import {
   useAccount,
@@ -24,6 +23,29 @@ import { WalletBar } from "./WalletBar";
 import { ThemePicker } from "./ThemePicker";
 import { TypeCutPicture } from "./TypeCutPicture";
 import { isDeskFace } from "./archiveFace";
+import { EmptyEdition } from "./EmptyEdition";
+import { FrontBidBar, minA1Wei } from "./FrontBidBar";
+import { IncompleteRail } from "./IncompleteRail";
+import { computeSyncLimits } from "./syncLimits";
+import {
+  DUEL_A,
+  DUEL_B,
+  DUEL_C,
+  DUEL_D,
+  buildDuelRounds,
+  makeDuelStory,
+  mergeDuelDayBids,
+  storiesForDuelDay,
+} from "./deskDuel";
+import {
+  LAB_FROM,
+  Preview,
+  SoftHeld,
+  formatPostedAt,
+  isLabTestDoc,
+  isLocalPreviewDoc,
+  shortAddr,
+} from "./uiBits";
 import { copyAsciiArtPrompt } from "./asciiArtPrompt";
 import {
   displayHandle,
@@ -61,7 +83,6 @@ import {
 } from "./frontPage";
 import {
   bidsForPrintedDay,
-  cardsForEdition,
   editionCursor,
   isOpenEdition,
   isOpenPrintedDay,
@@ -71,7 +92,6 @@ import {
   OPEN_HORIZON_DAYS,
   SYNC_LOOKBACK_DAYS,
   shiftUtcDay,
-  syncLookbackCutoffUnix,
   utcDayKey,
   utcTodayKey,
   type EditionView,
@@ -90,7 +110,6 @@ import { listCachedLikes, upsertCachedLikes } from "./likesCache";
 import { clearDraft, loadDraft, saveDraft } from "./drafts";
 import {
   clearIncomplete,
-  incompleteDoneCount,
   loadIncomplete,
   saveIncomplete,
   type IncompletePublish,
@@ -187,114 +206,6 @@ type LoadedDoc = {
   from?: string;
   postedAt?: number;
 };
-
-/** Local Preview face only — never lands on the front page. */
-const PREVIEW_FROM = "0xpreview00000000000000000000000000000001";
-/** Dev / Lab publish — local shelf only, not Pulse. */
-const LAB_FROM = "0xlab000000000000000000000000000000000001";
-/** Desk duel bidders — local A1–A3 / B outbid sim only. */
-const DUEL_A = "0xduela0000000000000000000000000000000001";
-const DUEL_B = "0xduelb0000000000000000000000000000000001";
-const DUEL_C = "0xduelc0000000000000000000000000000000001";
-const DUEL_D = "0xdueld0000000000000000000000000000000001";
-
-function shortAddr(a: string) {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-function isLocalPreviewDoc(from?: string) {
-  return (from || "").toLowerCase() === PREVIEW_FROM;
-}
-
-function isLabTestDoc(from?: string) {
-  return (from || "").toLowerCase() === LAB_FROM;
-}
-
-function formatPostedAt(unixSec?: number): string {
-  if (!unixSec || unixSec <= 0) return "";
-  const d = new Date(unixSec * 1000);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function Preview({ doc }: { doc: LoadedDoc }) {
-  const { mimeType, objectUrl } = doc;
-  if (
-    mimeType.startsWith("text/") ||
-    mimeType.includes("json") ||
-    mimeType.includes("xml")
-  ) {
-    return <TextPreview url={objectUrl} title={doc.title} />;
-  }
-  return (
-    <p className="meta">
-      Not text ({mimeType || "unknown"}). This app is text-only — open the Tx
-      link if you need the raw payload.
-    </p>
-  );
-}
-
-function SoftHeld({
-  hit,
-  children,
-  label = "Held from the face — open anyway",
-}: {
-  hit: boolean;
-  children: ReactNode;
-  label?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  if (!hit || open) return <>{children}</>;
-  return (
-    <div className="soft-held">
-      <p className="soft-held-note">
-        Soft mute — wording looked too graphic for the paper face.
-      </p>
-      <button type="button" className="ghost" onClick={() => setOpen(true)}>
-        {label}
-      </button>
-    </div>
-  );
-}
-
-function TextPreview({ url, title }: { url: string; title?: string }) {
-  const [text, setText] = useState("Loading…");
-  useEffect(() => {
-    let cancelled = false;
-    fetch(url)
-      .then((r) => r.text())
-      .then((t) => {
-        if (!cancelled) setText(t);
-      })
-      .catch((e) => {
-        if (!cancelled) setText(String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-  const loading = text === "Loading…";
-  const parts = loading ? { picture: "", body: text } : unpackArticle(text);
-  const hit = softMuteHit(title, parts.picture, parts.body);
-  return (
-    <SoftHeld hit={hit} label="Read anyway">
-      <div className="article-stack">
-        {parts.picture.trim() ? (
-          <TypeCutPicture text={parts.picture} className="article-picture" />
-        ) : null}
-        {parts.body.trim() || !parts.picture.trim() ? (
-          <pre className="article-body">{parts.body || (loading ? text : "")}</pre>
-        ) : null}
-      </div>
-    </SoftHeld>
-  );
-}
 
 export function App() {
   const { address, isConnected, chainId } = useAccount();
@@ -468,6 +379,10 @@ export function App() {
       setLicense(stuck.license);
       setReplaces(stuck.replaces);
       setChunks(stuck.progress);
+      if (stuck.bodyText != null) setBodyText(stuck.bodyText);
+      if (stuck.pictureText != null) setPictureText(stuck.pictureText);
+      setTab("post");
+      setWriteMode("compose");
       setDraftHydrated(true);
       return;
     }
@@ -821,25 +736,15 @@ export function App() {
         for (const l of likes) knownHashes.add(l.hash.toLowerCase());
         for (const f of fronts) knownHashes.add(f.hash.toLowerCase());
 
-        // Cold Sync (no last sync): tip only — not a 60-day explorer crawl that aborts.
-        // Daily return: short tip. Long absence: cap at SYNC_LOOKBACK_DAYS.
-        const cold = !lastSyncMs;
-        const lookbackDays = cold ? 3 : SYNC_LOOKBACK_DAYS;
-        const cutoff = syncLookbackCutoffUnix({
-          lastSyncMs: lastSyncMs || null,
-          lookbackDays,
-        });
-        const gapSec = Math.max(0, Math.floor(Date.now() / 1000) - cutoff);
-        const gapDays = Math.min(
-          lookbackDays,
-          Math.max(1, Math.ceil(gapSec / 86400)),
-        );
-        const maxItems = cold
-          ? 60
-          : Math.min(400, Math.max(80, gapDays * 20));
-        const maxPages = cold
-          ? 2
-          : Math.min(10, Math.max(3, Math.ceil(maxItems / 50)));
+        const {
+          cold,
+          cutoff,
+          maxItems,
+          maxPages,
+          stopAfterKnown,
+          pageGapMs,
+        } = computeSyncLimits(lastSyncMs || null);
+        void cold;
 
         if (/^0x[a-fA-F0-9]{40}$/.test(author)) {
           const remote = await listArchiveFromAuthor(author as `0x${string}`, {
@@ -847,6 +752,8 @@ export function App() {
             maxPages,
             knownHashes,
             stopOlderThanUnix: cutoff,
+            stopAfterKnown,
+            pageGapMs,
           });
           await upsertCatalog(remote);
           setEntries(dedupeBySha256(mergeShelfAndRemote(base, remote)));
@@ -856,6 +763,8 @@ export function App() {
             maxPages,
             knownHashes,
             stopOlderThanUnix: cutoff,
+            stopAfterKnown,
+            pageGapMs,
           });
           setLikes((prev) => dedupeLikes([...prev, ...bundle.likes]));
           setFronts((prev) => dedupeFrontBids([...prev, ...bundle.fronts]));
@@ -867,6 +776,8 @@ export function App() {
             maxPages,
             knownHashes,
             stopOlderThanUnix: cutoff,
+            stopAfterKnown,
+            pageGapMs,
           });
           await upsertCatalog(bundle.entries);
           setEntries(dedupeBySha256(mergeShelfAndRemote(base, bundle.entries)));
@@ -892,15 +803,14 @@ export function App() {
         const detail = offline
           ? "You’re offline"
           : aborted
-            ? "Pulse explorer timed out"
+            ? "Pulse explorer timed out (retried) — try Sync again"
             : raw || "Sync failed";
-        // Empty paper: stay quiet — Sync is optional; don’t dump AbortError theater
         if (!base.length) {
           setBrowseError(
             mode === "manual"
               ? aborted
-                ? "Couldn’t reach Pulse explorer — try again in a bit."
-                : `${detail} — nothing on this device yet.`
+                ? "Couldn’t reach Pulse explorer after retries — try Sync again in a bit."
+                : `${detail} — nothing on this device yet. Write locally or Sync when Scan is up.`
               : null,
           );
         } else {
@@ -1444,6 +1354,8 @@ export function App() {
               license,
               replaces,
               cw: false,
+              bodyText,
+              pictureText,
             });
             setIncomplete(row);
           },
@@ -1678,7 +1590,7 @@ export function App() {
       setFrontError("Enter a PLS amount");
       return;
     }
-    const need = frontWinner ? frontWinner.valueWei + 1n : 1n;
+    const need = minA1Wei(frontWinner);
     if (valueWei < need) {
       setFrontError(
         frontWinner
@@ -1749,116 +1661,67 @@ export function App() {
     setEditionDay(forDay);
     setFrontError(null);
 
-    const scoped = cardsForEdition(libraryCards, fronts, forDay);
-    let stories = scoped.map((c) => c.entry);
+    let stories = storiesForDuelDay(libraryCards, fronts, forDay);
 
-    async function ensureRival(
-      from: string,
-      title: string,
-      summary: string,
-      body: string,
-    ) {
-      const now = Math.floor(Date.now() / 1000);
-      const bytes = new TextEncoder().encode(body);
-      const digest = await sha256Hex(bytes);
-      const manifestHash = (`0x${digest}`) as Hash;
-      if (stories.some((s) => s.hash.toLowerCase() === manifestHash)) {
-        return;
-      }
-      const shelfRow = {
-        hash: manifestHash,
-        from,
-        timeStamp: now,
-        title,
-        mimeType: "text/plain;charset=utf-8",
-        type: "text" as DocType,
-        tags: ["duel"],
-        summary,
-        sha256: `0x${digest}`,
-        encoding: "raw" as const,
-        chunkCount: 1,
-        kind: "pulse-archive" as const,
-        cw: false,
-      };
-      pinToShelf(shelfRow);
-      await upsertCatalog([shelfRow]);
-      await putCachedDoc({
-        hash: manifestHash,
-        mimeType: shelfRow.mimeType,
-        title: shelfRow.title,
-        tags: shelfRow.tags,
-        summary: shelfRow.summary,
-        type: "text",
-        sha256: shelfRow.sha256,
-        encoding: "raw",
-        cw: false,
-        from,
-        postedAt: now,
-        chunkCount: 1,
-        bytes: bytes.buffer.slice(
-          bytes.byteOffset,
-          bytes.byteOffset + bytes.byteLength,
-        ) as ArrayBuffer,
-        savedAt: Date.now(),
-      });
-      stories = [...stories, shelfRow];
-    }
-
-    // Need four distinct stories to fill A1–A3 + B1
     while (stories.length < 4) {
       const n = stories.length;
       const from = [DUEL_A, DUEL_B, DUEL_C, DUEL_D][n] || DUEL_D;
-      await ensureRival(
+      const seed = await makeDuelStory(
         from,
         `Duel ${String.fromCharCode(65 + n)} — sim slot`,
         `Bidder ${n + 1} story`,
-        `Desk duel filler ${n + 1} for A1–A3/B ranking.`,
+        `Desk duel filler ${n + 1} for A1–A3/B ranking (Press parity).`,
+        sha256Hex,
       );
+      if (stories.some((x) => x.hash.toLowerCase() === seed.shelfRow.hash.toLowerCase())) {
+        break;
+      }
+      pinToShelf(seed.shelfRow);
+      await upsertCatalog([seed.shelfRow]);
+      await putCachedDoc({
+        hash: seed.shelfRow.hash,
+        mimeType: seed.shelfRow.mimeType,
+        title: seed.shelfRow.title,
+        tags: seed.shelfRow.tags,
+        summary: seed.shelfRow.summary,
+        type: "text",
+        sha256: seed.shelfRow.sha256,
+        encoding: "raw",
+        cw: false,
+        from: seed.shelfRow.from,
+        postedAt: seed.shelfRow.timeStamp,
+        chunkCount: 1,
+        bytes: seed.bytes.buffer.slice(
+          seed.bytes.byteOffset,
+          seed.bytes.byteOffset + seed.bytes.byteLength,
+        ) as ArrayBuffer,
+        savedAt: Date.now(),
+      });
+      stories = [...stories, seed.shelfRow];
     }
     setEntries((prev) =>
       dedupeBySha256(mergeShelfAndRemote(listShelf(), prev)),
     );
 
-    if (stories.length < 4) {
-      setFrontError("Could not seed four duel stories.");
-      return;
+    try {
+      const rounds = buildDuelRounds(stories, forDay);
+      setFronts((prev) => mergeDuelDayBids(prev, rounds.r1, forDay));
+      setFrontOk(rounds.statusR1);
+      await new Promise((r) => window.setTimeout(r, 800));
+      setFronts((prev) =>
+        mergeDuelDayBids(prev, [rounds.r2Extra, ...rounds.r1], forDay),
+      );
+      const ok =
+        rounds.verifyR2Labels[0] === stories[0]!.hash.toLowerCase();
+      setFrontOk(
+        ok
+          ? rounds.statusR2
+          : `Duel R2 layout mismatch — Press parity check failed`,
+      );
+      if (!ok) setFrontError("Desk duel did not match Press A1 cascade");
+    } catch (e) {
+      setFrontError(e instanceof Error ? e.message : String(e));
     }
-
-    const [s1, s2, s3, s4] = stories;
-    const t0 = Math.floor(Date.now() / 1000);
-    const mk = (
-      manifest: string,
-      from: string,
-      pls: bigint,
-      n: number,
-    ): FrontBidEntry => ({
-      hash: (`0x${"d".repeat(62)}${n.toString(16).padStart(2, "0")}`) as Hash,
-      from,
-      timeStamp: t0 + n,
-      manifest: manifest.toLowerCase() as Hash,
-      valueWei: pls * 10n ** 18n,
-      forDay,
-    });
-
-    // R1: four rungs — D=A1 … A=B1
-    setFronts((prev) =>
-      dedupeFrontBids([
-        mk(s1.hash, DUEL_A, 10n, 1),
-        mk(s2.hash, DUEL_B, 20n, 2),
-        mk(s3.hash, DUEL_C, 30n, 3),
-        mk(s4.hash, DUEL_D, 40n, 4),
-        ...prev.filter((b) => frontBidPrintedDay(b) !== forDay),
-      ]),
-    );
-    setFrontOk("Duel R1 · D@40=A1 · C@30=A2 · B@20=A3 · A@10=B1");
-
-    await new Promise((r) => window.setTimeout(r, 800));
-
-    // R2: A jumps to 100 → A1; D/C/B shift down
-    setFronts((prev) =>
-      dedupeFrontBids([mk(s1.hash, DUEL_A, 100n, 5), ...prev]),
-    );
-    setFrontOk("Duel R2 · A@100=A1 · D@40=A2 · C@30=A3 · B@20=B1");
     setTab("library");
     closeReader();
   }
@@ -2362,6 +2225,27 @@ export function App() {
 
       {tab === "library" && (
         <section className="panel page library-page">
+          {incomplete && (
+            <IncompleteRail
+              incomplete={incomplete}
+              publishing={publishing}
+              canRetry={false}
+              shaMismatch={false}
+              onRetry={() => {
+                setTab("post");
+                setWriteMode("compose");
+              }}
+              onGiveUp={() => {
+                clearIncomplete();
+                setIncomplete(null);
+                setChunks([]);
+              }}
+              onOpenPost={() => {
+                setTab("post");
+                setWriteMode("compose");
+              }}
+            />
+          )}
           {backupMsg && <p className="meta">{backupMsg}</p>}
           {frontOk && <p className="status ok">{frontOk}</p>}
           {frontError && <p className="status bad">{frontError}</p>}
@@ -2373,15 +2257,15 @@ export function App() {
           {!(doc && !isLocalPreviewDoc(doc.from)) && !reading && (
             <>
               {!browsing && filtered.length === 0 ? (
-                <div className="empty first-path">
-                  <p className="empty-title">No stories in this edition</p>
-                  <ol className="empty-steps">
-                    <li>Connect on Pulse</li>
-                    <li>Write · Publish</li>
-                    <li>Sync the feed</li>
-                    <li>Buy A1 with PLS to own the lead</li>
-                  </ol>
-                </div>
+                <EmptyEdition
+                  deskFace={deskFace}
+                  syncing={browsing}
+                  onWrite={() => {
+                    setWriteMode("compose");
+                    setTab("post");
+                  }}
+                  onSync={() => void refreshLibrary({ mode: "manual" })}
+                />
               ) : (
                 <div className="broadsheet">
                   {(hasSectionA ||
@@ -2491,8 +2375,9 @@ export function App() {
                             Tomorrow’s paper — unpublished
                           </p>
                           <p className="a1-dek">
-                            No A1 bid yet today. Bid PLS on a story to set the
-                            lead before UTC midnight.
+                            No A1 yet — open a story and Buy A1 with PLS (more
+                            than the lead; +1 wei can snipe). Like and tip are
+                            separate. Bids lock at that day’s UTC midnight.
                           </p>
                         </div>
                       ) : null}
@@ -2782,53 +2667,25 @@ export function App() {
                   {tipError && <p className="status bad">{tipError}</p>}
                   {tipOk && <p className="status ok">{tipOk}</p>}
                   {(isConnected || walletUiOff) && (
-                    <div className="front-bid-bar">
-                      <span className="front-bid-label">
-                        {frontWinner &&
-                        frontWinner.manifest.toLowerCase() ===
-                          doc.manifestHash.toLowerCase()
-                          ? `Leading ${bidForDay} A1 · ${formatPls(frontWinner.valueWei)} PLS — rebid if outbid`
-                          : frontWinner
-                            ? `${bidForDay} A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more for A1 (loser stays A2)`
-                            : `${bidForDay} A1 open — set the lead with PLS`}
-                      </span>
-                      <input
-                        type="date"
-                        value={bidForDay}
-                        min={minOpenDay}
-                        max={maxOpenDay}
-                        onChange={(e) => {
-                          const d = e.target.value;
-                          if (!isOpenPrintedDay(d)) return;
-                          setBidForDay(d);
-                          setEditionDay(d);
-                        }}
-                        aria-label="Open edition day for A1"
-                      />
-                      <input
-                        type="text"
-                        value={frontAmount}
-                        onChange={(e) => setFrontAmount(e.target.value)}
-                        aria-label="Front page PLS bid"
-                        placeholder="PLS"
-                      />
-                      <button
-                        type="button"
-                        className="primary"
-                        disabled={
-                          fronting ||
-                          (!walletUiOff &&
-                            (wrongChain || !walletClient || !publicClient))
-                        }
-                        onClick={() => void buyFrontPage()}
-                      >
-                        {fronting
-                          ? "…"
-                          : walletUiOff
-                            ? "Bid A1 (desk)"
-                            : "Buy A1"}
-                      </button>
-                    </div>
+                    <FrontBidBar
+                      bidForDay={bidForDay}
+                      frontAmount={frontAmount}
+                      fronting={fronting}
+                      walletUiOff={walletUiOff}
+                      wrongChain={wrongChain}
+                      canSend={!!walletClient && !!publicClient && !wrongChain}
+                      frontWinner={frontWinner}
+                      docManifest={doc.manifestHash}
+                      minOpenDay={minOpenDay}
+                      maxOpenDay={maxOpenDay}
+                      onDay={(d) => {
+                        if (!isOpenPrintedDay(d)) return;
+                        setBidForDay(d);
+                        setEditionDay(d);
+                      }}
+                      onAmount={setFrontAmount}
+                      onBuy={() => void buyFrontPage()}
+                    />
                   )}
                   {frontError && <p className="status bad">{frontError}</p>}
                   {frontOk && <p className="status ok">{frontOk}</p>}
@@ -2894,46 +2751,32 @@ export function App() {
             ← Back to edition
           </button>
           {incomplete && (
-            <div className="incomplete-rail">
-              <p className="meta" style={{ margin: 0 }}>
-                <strong>Publish paused</strong> — “{incomplete.title}” is{" "}
-                {incompleteDoneCount(incomplete)} of {incomplete.partsCount}{" "}
-                done. Don’t change the text — hit Retry to finish, or Give up
-                to drop it.
-              </p>
-              <div className="row wrap" style={{ margin: 0 }}>
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={
-                    publishing ||
-                    !prepared ||
-                    prepared.sha256 !== incomplete.sha256 ||
-                    !walletClient
-                  }
-                  onClick={() => void runPublish(true)}
-                >
-                  {publishing ? "Finishing…" : "Retry"}
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={publishing}
-                  onClick={() => {
-                    clearIncomplete();
-                    setIncomplete(null);
-                    setChunks([]);
-                  }}
-                >
-                  Give up
-                </button>
-              </div>
-              {prepared && prepared.sha256 !== incomplete.sha256 && (
-                <p className="status bad" style={{ margin: "0.35rem 0 0" }}>
-                  Text changed — paste the original draft back to Retry.
-                </p>
-              )}
-            </div>
+            <IncompleteRail
+              incomplete={incomplete}
+              publishing={publishing}
+              canRetry={
+                !!prepared &&
+                prepared.sha256 === incomplete.sha256 &&
+                (!!walletClient || walletUiOff)
+              }
+              shaMismatch={
+                !!prepared && prepared.sha256 !== incomplete.sha256
+              }
+              onRetry={() => {
+                if (walletUiOff) {
+                  setPubError(
+                    "Stuck publish is on-chain — connect Press wallet to Retry.",
+                  );
+                  return;
+                }
+                void runPublish(true);
+              }}
+              onGiveUp={() => {
+                clearIncomplete();
+                setIncomplete(null);
+                setChunks([]);
+              }}
+            />
           )}
           {writeMode === "preview" ? (
             <div className="write-preview">

@@ -6,7 +6,7 @@ export const ARCHIVE_SINK =
 export const CHUNK_BYTES = 20 * 1024;
 export const MAX_PUBLISH_BYTES = 150 * 1024;
 export const APP_NAME = "pulse-archive";
-export const APP_VERSION = "0.5.0";
+export const APP_VERSION = "0.6.0";
 
 export function shouldSkipGzip(mime) {
   const m = mime.toLowerCase();
