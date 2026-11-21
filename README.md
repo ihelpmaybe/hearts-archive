@@ -10,23 +10,31 @@ Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the le
 
 ```
                          HEARTS ARCHIVE
-                    local Press · on-chain ink
+                 phone app · or local Press
 ```
 
 ---
 
-## Run it (recommended)
+## Run it
 
-**Use a local copy** — you control when the UI updates. Connecting a funded wallet to a random web host is a worse trust model.
+### Phone / no Node (easiest)
+
+1. Open **[the web app](https://ihelpmaybe.github.io/hearts-archive/)** in Safari or Chrome  
+2. **Add to Home Screen** / Install app  
+3. Launch from the icon — fullscreen paper, bottom **Paper · Search · Write · Sync**
+
+No Node. No ZIP. It’s a installable web app (PWA).  
+Burner / small wallet is fine here. Big bags: prefer local Press below so *you* control updates ([`SECURITY.md`](./SECURITY.md)).
+
+### Local Press (Windows / Mac / Linux)
 
 | Want | Do this |
 |---|---|
-| **Windows** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → double-click **`start-press.cmd`** |
-| **Mac / Linux** | Unzip or clone → `chmod +x start-press.sh && ./start-press.sh` |
-| **Need Node** | Install [Node.js 20+ LTS](https://nodejs.org/) once, then the script above |
-| **Peek only** | [Demo preview](https://ihelpmaybe.github.io/hearts-archive/) — fine for reading; prefer local before a funded wallet |
+| **Windows** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → **`start-press.cmd`** (needs [Node 20+](https://nodejs.org/) once) |
+| **Mac / Linux** | Unzip/clone → `chmod +x start-press.sh && ./start-press.sh` |
+| **No Node yet** | Use the phone/web app above — or install Node, then the script |
 
-First Windows double-click installs deps once; later clicks open Press at `http://127.0.0.1:5177/`. Leave that window open — that’s the app.
+First local run installs deps once; Press opens at `http://127.0.0.1:5177/`. Leave that window open.
 
 Money paths, burns, and tip safety: **[`SECURITY.md`](./SECURITY.md)**.  
 Patches: **[`CONTRIBUTING.md`](./CONTRIBUTING.md)**.

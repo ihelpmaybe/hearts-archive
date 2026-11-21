@@ -12,9 +12,12 @@ If you find a wallet, tip-address, or drain-risk bug:
 
 ## How to run it
 
-**Recommended:** run a **local copy** like an app — ZIP + `start-press.cmd` (Windows) or `start-press.sh` (Mac/Linux). That build only changes when **you** download or pull again.
+| Path | Who it’s for |
+|---|---|
+| **Phone / no Node** — open the [web app](https://ihelpmaybe.github.io/hearts-archive/) → **Add to Home Screen** | Everyday access, reading, small/burner wallets |
+| **Local Press** — ZIP + `start-press.cmd` / `.sh` (needs Node 20+ once) | You control when the UI updates — better for funded wallets |
 
-A **demo preview** may be hosted on GitHub Pages for looking around. Prefer local before connecting a wallet with real funds, so a future deploy can’t silently change the UI under you.
+The home-screen app is the same Press build as GitHub Pages (no separate App Store binary). A future Pages deploy can change that UI under you; local Press only changes when **you** update. There is **no** offline service worker caching the money UI on purpose.
 
 ## What this app can spend
 

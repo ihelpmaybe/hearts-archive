@@ -55,6 +55,21 @@ ok(
   /assets\/[^"]+\.(js|css)/.test(html),
   "expected hashed assets in index",
 );
+ok(
+  "PWA manifest",
+  existsSync(join(dist, "manifest.webmanifest")),
+  "manifest.webmanifest in dist",
+);
+ok(
+  "PWA icons",
+  existsSync(join(dist, "icons", "icon-192.png")) &&
+    existsSync(join(dist, "icons", "icon-512.png")),
+);
+ok(
+  "manifest linked",
+  /manifest\.webmanifest/.test(html),
+  "index links manifest",
+);
 
 const assets = existsSync(join(dist, "assets"))
   ? readdirSync(join(dist, "assets"))

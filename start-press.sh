@@ -3,7 +3,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 20+ required: https://nodejs.org/"
+  echo "No Node — opening the web app (Add to Home Screen on phone)."
+  echo "Local Press later: install Node 20+ LTS, then re-run this script."
+  url="https://ihelpmaybe.github.io/hearts-archive/"
+  if command -v open >/dev/null 2>&1; then open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$url"
+  else echo "$url"
+  fi
   exit 1
 fi
 

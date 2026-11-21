@@ -2448,6 +2448,17 @@ a {
   color: var(--accent-hot);
 }
 
+/* Home-screen / installed PWA */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  body {
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+  .app {
+    padding-top: max(0.35rem, env(safe-area-inset-top, 0px));
+  }
+}
+
 /* ── Mobile app shell (phone / small tablet) ── */
 @media (max-width: 720px) {
   :root {

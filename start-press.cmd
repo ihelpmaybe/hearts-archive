@@ -5,10 +5,11 @@ cd /d "%~dp0"
 where node >nul 2>&1
 if errorlevel 1 (
   echo.
-  echo Node.js 20+ is required once.
-  echo Opening the download page — install LTS, then double-click this file again.
+  echo No Node on this PC — that's OK for phone / quick use.
+  echo Opening the web app ^(Add to Home Screen on mobile^).
+  echo For a local Press install later: Node 20+ LTS, then re-run this file.
   echo.
-  start "" "https://nodejs.org/en/download"
+  start "" "https://ihelpmaybe.github.io/hearts-archive/"
   pause
   exit /b 1
 )
