@@ -10,7 +10,7 @@ import { SoftHeld, Preview, shortAddr, formatPostedAt, isLabTestDoc, isLocalPrev
 import { displayHandle, telegramUrl, twitterUrl } from "../authorContact";
 import { hasLiked } from "../archive";
 import { formatPls } from "../frontPage";
-import { isOpenPrintedDay } from "../editions";
+import { isOpenPrintedDay, shiftUtcDay } from "../editions";
 import { softMuteHit } from "../softMute";
 import { clearIncomplete } from "../incomplete";
 import { CUSTOM_TIP_ID, TIP_PRESETS, isAddressLike } from "../tipTokens";
@@ -130,57 +130,98 @@ export function LibraryPage() {
     <>
           {!doc && (
     <header className="masthead">
-              <div
-                className="ornament-bar ornament-bar--days"
-                role="group"
-                aria-label="Edition day"
-              >
-                <button
-                  type="button"
-                  className={
-                    editionCursorKey < todayKey
-                      ? "edition-day-btn is-active"
-                      : "edition-day-btn"
-                  }
-                  onClick={stepEditionPast}
-                  title={`${pastDisplayKey} · Final · click again for earlier`}
-                >
-                  <span className="edition-day-label">Yesterday</span>
-                  <span className="edition-day-date">
-                    {formatEditionShort(pastDisplayKey)} · Final
+              <nav className="edition-day-nav" aria-label="Choose paper day">
+                <p className="edition-day-caption">
+                  Which day’s paper?
+                  <span className="edition-day-hint">
+                    {" "}
+                    · tap Yesterday or Tomorrow to flip days
                   </span>
-                </button>
-                <button
-                  type="button"
-                  className={
-                    editionCursorKey === todayKey
-                      ? "edition-day-btn is-active"
-                      : "edition-day-btn"
-                  }
-                  onClick={() => pickEditionDay(todayKey)}
-                  title={`${todayKey} · Final`}
+                </p>
+                <div
+                  className="ornament-bar ornament-bar--days"
+                  role="group"
+                  aria-label="Yesterday, today, tomorrow"
                 >
-                  <span className="edition-day-label">Today</span>
-                  <span className="edition-day-date">
-                    {formatEditionShort(todayKey)} · Final
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={
-                    editionCursorKey > todayKey
-                      ? "edition-day-btn is-active"
-                      : "edition-day-btn"
-                  }
-                  onClick={stepEditionFuture}
-                  title={`${futureDisplayKey} · Open A1 · click again for later`}
-                >
-                  <span className="edition-day-label">Tomorrow</span>
-                  <span className="edition-day-date">
-                    {formatEditionShort(futureDisplayKey)} · Open
-                  </span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    className={
+                      editionCursorKey < todayKey
+                        ? "edition-day-btn is-active"
+                        : "edition-day-btn"
+                    }
+                    onClick={stepEditionPast}
+                    aria-current={
+                      editionCursorKey < todayKey ? "date" : undefined
+                    }
+                    title={`${pastDisplayKey} · Final · tap again for earlier`}
+                  >
+                    <span className="edition-day-chev" aria-hidden="true">
+                      ‹
+                    </span>
+                    <span className="edition-day-stack">
+                      <span className="edition-day-label">
+                        {pastDisplayKey === shiftUtcDay(todayKey, -1)
+                          ? "Yesterday"
+                          : "Past"}
+                      </span>
+                      <span className="edition-day-date">
+                        {formatEditionShort(pastDisplayKey)}
+                      </span>
+                      <span className="edition-day-status">Printed</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      editionCursorKey === todayKey
+                        ? "edition-day-btn is-active"
+                        : "edition-day-btn"
+                    }
+                    onClick={() => pickEditionDay(todayKey)}
+                    aria-current={
+                      editionCursorKey === todayKey ? "date" : undefined
+                    }
+                    title={`${todayKey} · Final`}
+                  >
+                    <span className="edition-day-stack">
+                      <span className="edition-day-label">Today</span>
+                      <span className="edition-day-date">
+                        {formatEditionShort(todayKey)}
+                      </span>
+                      <span className="edition-day-status">Printed</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      editionCursorKey > todayKey
+                        ? "edition-day-btn is-active"
+                        : "edition-day-btn"
+                    }
+                    onClick={stepEditionFuture}
+                    aria-current={
+                      editionCursorKey > todayKey ? "date" : undefined
+                    }
+                    title={`${futureDisplayKey} · Open A1 · tap again for later`}
+                  >
+                    <span className="edition-day-stack">
+                      <span className="edition-day-label">
+                        {futureDisplayKey === shiftUtcDay(todayKey, 1)
+                          ? "Tomorrow"
+                          : "Next"}
+                      </span>
+                      <span className="edition-day-date">
+                        {formatEditionShort(futureDisplayKey)}
+                      </span>
+                      <span className="edition-day-status">Open bids</span>
+                    </span>
+                    <span className="edition-day-chev" aria-hidden="true">
+                      ›
+                    </span>
+                  </button>
+                </div>
+              </nav>
               <h1 className="nameplate">Heart’s Archive</h1>
               <hr className="single-rule masthead-rule" />
             </header>

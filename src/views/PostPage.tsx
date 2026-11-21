@@ -422,8 +422,8 @@ export function PostPage() {
                     </div>
                     <p className="meta a1-price-hint">{a1PriceHint}</p>
                     <p className="meta">
-                      Preview = faces only. Desk = local publish. Press = on-chain
-                      when connected.
+                  Preview = faces only. Desk = DEV sandbox. Real app = Press
+                  (start-press.cmd / npm run dev:press).
                     </p>
                     {wrongChain && isConnected && (
                       <p className="status bad">

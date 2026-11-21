@@ -92,6 +92,10 @@ import {
 } from "./catalog";
 import { loadLocalCatalog } from "./catalogLocal";
 import { loadLabSeed } from "./labSeed";
+import {
+  buildPublishGuide,
+  publishGuideHashForDay,
+} from "./howToGuide";
 import { isLabMode, labOpenedViaQuery, setLabMode } from "./labMode";
 import { listCachedLikes, upsertCachedLikes } from "./likesCache";
 import { clearDraft, loadDraft, saveDraft } from "./drafts";
@@ -951,6 +955,45 @@ export function App() {
         }
       }
       await loadLocalLibrary();
+      // Empty Open paper → local “how to publish” article (not on-chain)
+      try {
+        const openDay = shiftUtcDay(utcTodayKey(), 1);
+        const guideHash = await publishGuideHashForDay(openDay);
+        const openBids = bidsForPrintedDay(loadLocalFronts(), openDay);
+        const hasRealOpenStory = openBids.some(
+          (b) => b.manifest.toLowerCase() !== guideHash.toLowerCase(),
+        );
+        const deep = parseRouteHash(window.location.hash);
+        if (!hasRealOpenStory) {
+          const guide = await buildPublishGuide(openDay);
+          setEntries((prev) =>
+            dedupeBySha256(mergeShelfAndRemote([guide.entry], prev)),
+          );
+          setFronts((prev) => {
+            const withoutGuide = prev.filter(
+              (b) =>
+                frontBidPrintedDay(b) !== openDay ||
+                b.manifest.toLowerCase() !== guideHash.toLowerCase(),
+            );
+            const real = bidsForPrintedDay(withoutGuide, openDay);
+            if (real.length > 0) return withoutGuide;
+            return dedupeFrontBids([guide.front, ...withoutGuide]);
+          });
+          if (!deep) {
+            setEditionDay(openDay);
+            setPaperPage("A");
+            setTab("library");
+            // Always open the article — prior sessions saved the guide bid
+            // and used to skip this, so Desk looked “empty” of instructions.
+            await load(guide.entry.hash);
+          }
+        } else if (!deep) {
+          setEditionDay(openDay);
+          setPaperPage("A");
+        }
+      } catch (e) {
+        console.warn("publish guide failed", e);
+      }
       // No auto-Sync — explorer crawls abort on cold loads. User hits Sync when ready.
       await refreshRecentLocal();
     })();
@@ -1891,7 +1934,11 @@ export function App() {
       "NOV",
       "DEC",
     ];
-    return `${months[(m || 1) - 1]} ${d}, ${y}`;
+    const mon = months[(m || 1) - 1];
+    // Same calendar year as today → drop year so mobile day strip stays readable
+    const nowY = Number(utcTodayKey().slice(0, 4));
+    if (y === nowY) return `${mon} ${d}`;
+    return `${mon} ${d}, ${y}`;
   }
 
   function pickEditionDay(day: string) {
@@ -2152,10 +2199,10 @@ export function App() {
         )}
         {deskFace && (
           <span
-            className="meta rail-lab"
-            title="Desk face — local publish, no wallet gate. Press = npm run build or npm run dev:press"
+            className="meta rail-lab rail-lab--warn"
+            title="DEV ONLY — local sandbox. Real app: ZIP + start-press.cmd (or npm run dev:press)"
           >
-            Desk
+            Desk · DEV ONLY
           </span>
         )}
         {!deskFace && labOn && (

@@ -5,29 +5,23 @@ Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The des
 
 > Experimental, text-only, Raven-compatible.
 
-**Live (Press face):** [https://ihelpmaybe.github.io/hearts-archive/](https://ihelpmaybe.github.io/hearts-archive/)
+**Run it like an app on your PC** (recommended). A [demo preview](https://ihelpmaybe.github.io/hearts-archive/) stays up for browsing — for wallet use, prefer local so *you* control when the UI updates. See [`SECURITY.md`](./SECURITY.md).
 
 ---
 
-## Run it locally (download)
+## Run it
 
-**Need:** [Node.js 20+](https://nodejs.org/) (LTS).
+| Want | Do this |
+|---|---|
+| **Windows app-style** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → double-click **`start-press.cmd`** |
+| **Mac/Linux** | Unzip/clone → `chmod +x start-press.sh && ./start-press.sh` |
+| **No Node yet** | Install [Node.js 20+ LTS](https://nodejs.org/) once, then use the script above |
+| **Peek only** | [Demo preview](https://ihelpmaybe.github.io/hearts-archive/) (fine for reading; local is better before connecting a funded wallet) |
 
-### Option A — ZIP
-1. Open [github.com/ihelpmaybe/hearts-archive](https://github.com/ihelpmaybe/hearts-archive)
-2. **Code → Download ZIP** → unzip
-3. In that folder:
-
-```bash
-npm install
-npm run dev:press
-```
-
-Open the URL Vite prints (usually `http://127.0.0.1:5177/`). Connect a Pulse wallet to publish / like / bid A1.
-
-### Option B — Git clone
+**Windows:** First double-click installs deps once; later clicks open Press at `http://127.0.0.1:5177/`. Leave the window open — that’s the app running. Connect a Pulse wallet there.
 
 ```bash
+# or by hand
 git clone https://github.com/ihelpmaybe/hearts-archive.git
 cd hearts-archive
 npm install
@@ -128,6 +122,7 @@ On-chain `app` id stays `pulse-archive` for Raven compatibility.
 - Tips use **Pulse** token addresses (pHEX ≠ Ethereum HEX)
 - **Money map:** Likes / A1 bids **burn PLS to `0x…feed`**. Publish writes data (**0 PLS** value). Tips **`transfer`** to the author (or their tip wallet) — no `approve`, no background spend. Details: [`SECURITY.md`](./SECURITY.md)
 - Wallet scanners may warn on connect because burns-to-`…feed` look drain-like; every spend still needs your confirm
+- **Recommended path = local app** (`start-press.cmd` / `.sh`). Demo preview is optional; don’t treat it as the only install
 
 ---
 

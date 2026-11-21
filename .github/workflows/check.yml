@@ -25,5 +25,5 @@ jobs:
       - uses: foundry-rs/foundry-toolchain@v1
       - name: anvil dry (A1 gate)
         run: npm run sim:dry
-      - name: Pages build smoke
+      - name: Static Press build smoke
         run: npm run smoke:pages

@@ -2,6 +2,12 @@
 
 Heart’s Archive is an experimental PulseChain broadsheet. Read this before connecting a wallet.
 
+## How to run it
+
+**Recommended:** run a **local copy** like an app — ZIP + `start-press.cmd` (Windows) or `start-press.sh` (Mac/Linux). That build only changes when **you** download or pull again.
+
+A **demo preview** may be hosted on GitHub Pages for looking around. Prefer local before connecting a wallet with real funds, so a future deploy can’t silently change the UI under you.
+
 ## What this app can spend
 
 Every spend is a **user-confirmed** wallet popup. There is no background drain, no hidden `approve`, and no WalletConnect relay.
@@ -21,6 +27,7 @@ Burn to `0x…feed` is intentional (on-chain library / ranking). Wallet scanners
 - Does not request unlimited ERC-20 allowances
 - Does not use WalletConnect / Coinbase / Porto connectors (injected wallets only)
 - Does not ask for seed phrases
+- Does not auto-update a local install
 
 ## Tips — check the recipient
 
@@ -30,6 +37,8 @@ Tips go to the **story’s** tip address (or author). A malicious post could set
 
 The RPC field lets you override Pulse endpoints. Only save URLs you trust; a bad RPC can lie about chain state.
 
-## Report a false phishing flag
+## Still your responsibility
 
-If MetaMask / Blockaid flags this origin, file a mistake report with the exact hostname (e.g. `ihelpmaybe.github.io`) and link this file. Public site: https://ihelpmaybe.github.io/hearts-archive/
+- Re-check the repo / ZIP when you update
+- Prefer a burner wallet while experimenting
+- `npm install` trusts the lockfile + registry — don’t upgrade deps casually

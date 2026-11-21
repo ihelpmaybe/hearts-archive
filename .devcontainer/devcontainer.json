@@ -1,0 +1,18 @@
+{
+  "name": "Heart's Archive",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [5177],
+  "postCreateCommand": "npm install",
+  "postAttachCommand": "npm run dev:press",
+  "portsAttributes": {
+    "5177": {
+      "label": "Press",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint"]
+    }
+  }
+}

@@ -17,9 +17,18 @@ export function EmptyEdition({
         This edition is empty until someone publishes text and a wallet bids PLS
         for A1. Like ≠ tip ≠ front bid.
       </p>
+      {deskFace ? (
+        <p className="empty-dek status bad" style={{ marginTop: "0.5rem" }}>
+          You’re on <strong>Desk · DEV ONLY</strong> (local sandbox). For the
+          real app: download the GitHub ZIP and double-click{" "}
+          <code>start-press.cmd</code> (or <code>npm run dev:press</code>).
+        </p>
+      ) : null}
       <ol className="empty-steps">
         <li>
-          {deskFace ? "Desk: write locally (no wallet)" : "Connect on Pulse"}
+          {deskFace
+            ? "Desk is for developers — switch to Press for wallets"
+            : "Connect on Pulse"}
         </li>
         <li>
           <button type="button" className="linkish" onClick={onWrite}>
