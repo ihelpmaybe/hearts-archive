@@ -355,25 +355,21 @@ async function main() {
     });
     await publicClient.waitForTransactionReceipt({ hash: highBidHash });
 
-    const tipAfterBid = await publicClient.getBlockNumber();
+    // Read the two bid txs directly (block-scan `input` is flaky across viem/anvil).
     const bids = [];
-    for (let b = 0n; b <= tipAfterBid; b++) {
-      const block = await publicClient.getBlock({
-        blockNumber: b,
-        includeTransactions: true,
+    for (const hash of [lowBidHash, highBidHash]) {
+      const tx = await publicClient.getTransaction({ hash });
+      if (!tx.to || tx.to.toLowerCase() !== ARCHIVE_SINK.toLowerCase()) continue;
+      const raw = tx.input || tx.data;
+      const parsed = tryParseFrontBid(raw);
+      if (!parsed) continue;
+      if (parsed.manifest !== manifestHash.toLowerCase()) continue;
+      bids.push({
+        hash: tx.hash,
+        valueWei: tx.value,
+        forDay: parsed.forDay || null,
+        from: tx.from,
       });
-      for (const tx of block.transactions) {
-        if (!tx.to || tx.to.toLowerCase() !== ARCHIVE_SINK) continue;
-        const parsed = tryParseFrontBid(tx.input);
-        if (!parsed) continue;
-        if (parsed.manifest !== manifestHash.toLowerCase()) continue;
-        bids.push({
-          hash: tx.hash,
-          valueWei: tx.value,
-          forDay: parsed.forDay || null,
-          from: tx.from,
-        });
-      }
     }
     const dayBids = bids.filter((b) => b.forDay === forDay);
     dayBids.sort((a, b) =>

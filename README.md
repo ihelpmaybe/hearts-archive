@@ -1,101 +1,79 @@
 # Heart’s Archive
 
-**On-chain newspaper for PulseChain.**  
-Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The desk reads like a broadsheet — not a feed of cards.
+[![Check](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml)
+[![Pages](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-> Experimental, text-only, Raven-compatible.
+**On-chain newspaper for [PulseChain](https://pulsechain.com).**  
+Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the lead. Reads like a broadsheet — not a card feed.
 
-**Run it like an app on your PC** (recommended). A [demo preview](https://ihelpmaybe.github.io/hearts-archive/) stays up for browsing — for wallet use, prefer local so *you* control when the UI updates. See [`SECURITY.md`](./SECURITY.md).
+> Experimental · text-only · Raven-compatible (`app`: `pulse-archive`)
+
+```
+                         HEARTS ARCHIVE
+                    local Press · on-chain ink
+```
 
 ---
 
-## Run it
+## Run it (recommended)
+
+**Use a local copy** — you control when the UI updates. Connecting a funded wallet to a random web host is a worse trust model.
 
 | Want | Do this |
 |---|---|
-| **Windows app-style** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → double-click **`start-press.cmd`** |
-| **Mac/Linux** | Unzip/clone → `chmod +x start-press.sh && ./start-press.sh` |
-| **No Node yet** | Install [Node.js 20+ LTS](https://nodejs.org/) once, then use the script above |
-| **Peek only** | [Demo preview](https://ihelpmaybe.github.io/hearts-archive/) (fine for reading; local is better before connecting a funded wallet) |
+| **Windows** | [Download ZIP](https://github.com/ihelpmaybe/hearts-archive/archive/refs/heads/main.zip) → unzip → double-click **`start-press.cmd`** |
+| **Mac / Linux** | Unzip or clone → `chmod +x start-press.sh && ./start-press.sh` |
+| **Need Node** | Install [Node.js 20+ LTS](https://nodejs.org/) once, then the script above |
+| **Peek only** | [Demo preview](https://ihelpmaybe.github.io/hearts-archive/) — fine for reading; prefer local before a funded wallet |
 
-**Windows:** First double-click installs deps once; later clicks open Press at `http://127.0.0.1:5177/`. Leave the window open — that’s the app running. Connect a Pulse wallet there.
+First Windows double-click installs deps once; later clicks open Press at `http://127.0.0.1:5177/`. Leave that window open — that’s the app.
+
+Money paths, burns, and tip safety: **[`SECURITY.md`](./SECURITY.md)**.
 
 ```bash
-# or by hand
 git clone https://github.com/ihelpmaybe/hearts-archive.git
 cd hearts-archive
 npm install
-npm run dev:press   # people / wallets on
-# or: npm run dev   # Desk — local publish, no wallet gate
+npm run dev:press   # Press — wallets on (people)
+# npm run dev       # Desk — local sandbox, DEV ONLY
 ```
-
-Desk vs Press = same repo, two faces — not two GitHubs.
 
 | Face | Command | Wallet | Publish |
 |---|---|---|---|
+| **Press** (real app) | `start-press.*` / `npm run dev:press` | on | on-chain → `…feed` |
 | **Desk** (develop) | `npm run dev` | off | local shelf + test A1 |
-| **Press** (people) | `npm run build` / `dev:press` | on | on-chain to `…feed` |
 
 ```bash
-npm run check      # typecheck · lint · unit · smoke · lab · dry (A1)
-npm run build      # static Press bundle (dist/)
+npm run check   # typecheck · lint · unit · smoke · anvil A1 dry
+npm run build   # static Press → dist/
 ```
 
-Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
-
-Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
-
----
-
-## Why it exists
-
-| Problem | This desk |
-|---|---|
-| Feeds bury signal in chrome | Broadsheet front: nameplate, A1, columns |
-| “Pinning” is social theater | **Pay PLS** to `0x…feed` to hold the lead |
-| Image boards drown the signal | **Text-only publish** + soft mute on the face |
-| Yesterday disappears | **Daily editions** from bid timestamps (UTC) |
+Lab fake posts stay **off** unless `?lab=1`, the Lab checkbox, or `VITE_LAB_SEED=1`.
 
 ---
 
 ## What you can do
 
-1. **Write** → publish UTF-8 text (gzip when it helps; hard cap 150 KB)
-2. **Sync** → pull `…feed` into a local-first library (IndexedDB)
-3. **Buy A1–A3** → PLS front-bids; top 3 own the A face; next ranks fill **B1+** then **C/D**
-4. **Like / tip** → on-chain sign-off; tip pHEX / INC / etc. to the author
-5. **Edition** → Today · Final (closed) · → Tomorrow · Open (unpublished A1 race)
-6. **Themes** → Venus (default) · Light · Dark · Pulse
+1. **Write** — UTF-8 text (gzip when useful; hard cap 150 KB). Optional ASCII type-cut.
+2. **Sync** — pull `…feed` into a local-first library (IndexedDB). RPC-light; no auto-crawl spam.
+3. **Buy A1–A3** — PLS front-bids; top 3 own the A face; next ranks fill **B1+**, then **C/D**.
+4. **Like / tip** — like burns ≥1 PLS to `…feed`; tip is a normal `transfer` to the author (no `approve`).
+5. **Editions** — Final (≤ today, locked) · Open (tomorrow … +30 UTC days).
+6. **Themes** — Venus · Light · Dark · Pulse.
+
+Phone: bottom **Paper · Search · Write · Sync**. Desk chrome stays for developers.
 
 ---
 
-## Scripts
+## Why
 
-| Script | What |
+| Problem | This paper |
 |---|---|
-| `npm run check` | Gate before you share a branch |
-| `npm run dev` / `dev:desk` | Desk face on `:5177` |
-| `npm run dev:press` | Press face locally (wallets on) |
-| `npm run build` / `build:press` | Press production bundle |
-| `npm run build:pages` | Press bundle with `/hearts-archive/` base (GitHub Pages) |
-| `npm run build:desk` | Desk static build (optional) |
-| `npm run sim:lab` | Local anvil publish / read / like (no Pulse trail) |
-| `npm run sim:dry` | Post → Sync → Like → Tip → Front-bid (A1) on anvil |
-| `npm run sim:seed` | Rebuild `public/lab-seed.json` |
-| `npm run sim` | Foundry stress → `sim/out/` (gitignored) |
-
----
-
-## Layout
-
-```
-src/           React desk (Library · Post · broadsheet)
-public/themes  Theme packs (Press default)
-sim/           Anvil lab + dry-run + stress
-PROTOCOL.md    Operator one-pager
-```
-
-Authors **cannot** publish images through this app — text face only.
+| Feeds bury signal in chrome | Broadsheet: nameplate, A1, columns |
+| “Pinning” is social theater | **Pay PLS** to `0x…feed` for the lead |
+| Image boards drown text | **Text-only** publish + soft mute on the face |
+| Yesterday vanishes | **Daily editions** from bid timestamps (UTC) |
 
 ---
 
@@ -106,26 +84,48 @@ Authors **cannot** publish images through this app — text face only.
 | Archive inbox | `0x0000…feed` |
 | Chunk sink | `0x0000…0000` |
 | Write mime | text only |
-| Front bid | `{ "kind": "pulse-archive-front", "manifest": "0x…" }` + **PLS `value`** |
-| Like | `{ "kind": "pulse-archive-like", "manifest": "0x…" }` |
+| Front bid | `{ "kind": "pulse-archive-front", "manifest": "0x…", "forDay": "YYYY-MM-DD" }` + **PLS value** |
+| Like | `{ "kind": "pulse-archive-like", "manifest": "0x…" }` + ≥1 PLS |
 | Share | `#/369/0x…` |
 
-On-chain `app` id stays `pulse-archive` for Raven compatibility.
+Full operator wire: [`PROTOCOL.md`](./PROTOCOL.md).
 
 ---
 
-## Safety
+## Safety (read this)
 
 - Never paste seed phrases into the archive
-- Lab ≠ mainnet — Foundry burns nothing on Pulse
-- Soft mute is a blunt keyword screen for the paper face
-- Tips use **Pulse** token addresses (pHEX ≠ Ethereum HEX)
-- **Money map:** Likes / A1 bids **burn PLS to `0x…feed`**. Publish writes data (**0 PLS** value). Tips **`transfer`** to the author (or their tip wallet) — no `approve`, no background spend. Details: [`SECURITY.md`](./SECURITY.md)
-- Wallet scanners may warn on connect because burns-to-`…feed` look drain-like; every spend still needs your confirm
-- **Recommended path = local app** (`start-press.cmd` / `.sh`). Demo preview is optional; don’t treat it as the only install
+- **Likes / A1** burn PLS to `0x…feed` (intentional). Wallet scanners may look spooked — every spend still needs your confirm
+- **Tips** = `transfer` to the story’s tip address — check it
+- **Publish** = data txs (0 PLS value) + gas
+- No background drain, no unlimited `approve`, injected wallets only
+- Prefer a burner while experimenting
+- Demo Pages ≠ your install — local Press only changes when you update
+
+Details: [`SECURITY.md`](./SECURITY.md).
+
+---
+
+## Scripts
+
+| Script | What |
+|---|---|
+| `npm run check` | Gate before you share a branch |
+| `npm run dev` / `dev:press` | Desk / Press on `:5177` |
+| `npm run build` / `build:pages` | Press bundle (Pages uses `/hearts-archive/` base) |
+| `npm run sim:dry` | Anvil: Post → Sync → Like → Tip → A1 |
+| `npm run sim:lab` | Local Foundry lab (no Pulse trail) |
+
+```
+src/            React paper (Library · Post · broadsheet)
+public/themes   Theme packs
+sim/            Anvil lab + dry-run
+PROTOCOL.md     Operator one-pager
+SECURITY.md     Money + trust model
+```
 
 ---
 
 ## License / status
 
-Experimental tool. Collaborate carefully; mainnet ink is forever.
+[MIT](./LICENSE). Experimental — mainnet ink is forever. Collaborate carefully.
