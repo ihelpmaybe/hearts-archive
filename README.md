@@ -124,7 +124,7 @@ On-chain `app` id stays `pulse-archive` for Raven compatibility.
 
 - Never paste seed phrases into the archive
 - Lab ≠ mainnet — Foundry burns nothing on Pulse
-- Soft mute is a blunt keyword screen, not an NSFW classifier
+- Soft mute is a blunt keyword screen for the paper face
 - Tips use **Pulse** token addresses (pHEX ≠ Ethereum HEX)
 
 ---

@@ -3,7 +3,7 @@ import { softMuteHit } from "./softMute";
 
 describe("softMuteHit", () => {
   it("flags blunt lewd tokens", () => {
-    expect(softMuteHit("free porn tips")).toBe(true);
+    expect(softMuteHit("explicit sex tips")).toBe(true);
     expect(softMuteHit("NSFW gallery")).toBe(true);
   });
 
