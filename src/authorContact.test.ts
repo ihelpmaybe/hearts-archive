@@ -9,10 +9,10 @@ import {
 
 describe("authorContact", () => {
   it("normalizes handles", () => {
-    expect(normalizeHandle("@@pump")).toBe("pump");
-    expect(displayHandle("pump")).toBe("@pump");
-    expect(telegramUrl("@pump")).toBe("https://t.me/pump");
-    expect(twitterUrl("pump")).toBe("https://x.com/pump");
+    expect(normalizeHandle("@@writer")).toBe("writer");
+    expect(displayHandle("writer")).toBe("@writer");
+    expect(telegramUrl("@writer")).toBe("https://t.me/writer");
+    expect(twitterUrl("writer")).toBe("https://x.com/writer");
   });
 
   it("picks first preferred tip token", () => {

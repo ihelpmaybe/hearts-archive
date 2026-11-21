@@ -1151,6 +1151,23 @@ a.link-btn {
   gap: 0.35rem 0.85rem;
 }
 
+.section-lead {
+  margin: 0 0 0.75rem;
+}
+
+.section-lead .a1-banner {
+  text-align: left;
+}
+
+.section-lead-kicker {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.section-lead + .section-band-grid {
+  margin-top: 0.25rem;
+}
+
 .section-card {
   border: 1px solid var(--line-soft);
   padding: 0.45rem 0.55rem 0.55rem !important;

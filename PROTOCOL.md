@@ -1,6 +1,6 @@
 # Heart’s Archive — one pager
 
-On-chain broadsheet for PulseChain. Write text to `0x…feed`, chunks to `0x0`. Highest PLS front-bid owns A1. Private desk tool — not public product infra.
+On-chain broadsheet for PulseChain. Write text to `0x…feed`, chunks to `0x0`. Highest PLS front-bid owns A1. Experimental desk tool — not production infra.
 
 ## Faces (one repo)
 

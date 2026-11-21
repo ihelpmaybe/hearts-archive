@@ -21,12 +21,11 @@ import {
 } from "viem";
 import { WalletBar } from "./WalletBar";
 import { ThemePicker } from "./ThemePicker";
-import { TypeCutPicture } from "./TypeCutPicture";
 import { isDeskFace } from "./archiveFace";
-import { EmptyEdition } from "./EmptyEdition";
-import { FrontBidBar, minA1Wei } from "./FrontBidBar";
-import { IncompleteRail } from "./IncompleteRail";
-import { MoneyStrip } from "./MoneyStrip";
+import { minA1Wei } from "./FrontBidBar";
+import { ArchiveUiProvider } from "./archiveUi";
+import { LibraryPage } from "./views/LibraryPage";
+import { PostPage } from "./views/PostPage";
 import { computeSyncLimits } from "./syncLimits";
 import {
   DUEL_A,
@@ -40,20 +39,8 @@ import {
 } from "./deskDuel";
 import {
   LAB_FROM,
-  Preview,
-  SoftHeld,
-  formatPostedAt,
-  isLabTestDoc,
   isLocalPreviewDoc,
-  shortAddr,
 } from "./uiBits";
-import { copyAsciiArtPrompt } from "./asciiArtPrompt";
-import {
-  displayHandle,
-  telegramUrl,
-  twitterUrl,
-} from "./authorContact";
-import { normalizeTypeCut } from "./typeCut";
 import { packArticle, unpackArticle } from "./articleFormat";
 import { loadAndApplyTheme } from "./theme";
 import {
@@ -97,7 +84,6 @@ import {
   utcTodayKey,
   type EditionView,
 } from "./editions";
-import { softMuteHit } from "./softMute";
 import { getCachedDoc, listCachedSummaries, putCachedDoc } from "./cache";
 import {
   findCatalogBySha256,
@@ -135,10 +121,7 @@ import {
   preparePublishPayload,
   publishPrepared,
   readDocument,
-  SCAN_TX,
   sharePath,
-  shareUrl,
-  MAX_PUBLISH_BYTES,
   sendFrontBid,
   sendLike,
   sha256Hex,
@@ -179,11 +162,6 @@ import {
 } from "./shelfBackup";
 import { collapseSeriesCards } from "./series";
 import { offlineOpenHint } from "./offlineOpen";
-import {
-  LANG_OPTIONS,
-  LICENSE_OPTIONS,
-  withCurrentOption,
-} from "./metaOptions";
 
 type LoadedDoc = {
   mimeType: string;
@@ -2191,1081 +2169,125 @@ export function App() {
         </div>
       </div>
 
-      {/* Classic masthead — ornament + nameplate; day strip under the rule */}
-      {tab === "library" && !doc && (
-        <header className="masthead">
-          <div
-            className="ornament-bar ornament-bar--days"
-            role="group"
-            aria-label="Edition day"
-          >
-            <button
-              type="button"
-              className={
-                editionCursorKey < todayKey
-                  ? "edition-day-btn is-active"
-                  : "edition-day-btn"
-              }
-              onClick={stepEditionPast}
-              title={`${pastDisplayKey} · Final · click again for earlier`}
-            >
-              <span className="edition-day-label">Yesterday</span>
-              <span className="edition-day-date">
-                {formatEditionShort(pastDisplayKey)} · Final
-              </span>
-            </button>
-            <button
-              type="button"
-              className={
-                editionCursorKey === todayKey
-                  ? "edition-day-btn is-active"
-                  : "edition-day-btn"
-              }
-              onClick={() => pickEditionDay(todayKey)}
-              title={`${todayKey} · Final`}
-            >
-              <span className="edition-day-label">Today</span>
-              <span className="edition-day-date">
-                {formatEditionShort(todayKey)} · Final
-              </span>
-            </button>
-            <button
-              type="button"
-              className={
-                editionCursorKey > todayKey
-                  ? "edition-day-btn is-active"
-                  : "edition-day-btn"
-              }
-              onClick={stepEditionFuture}
-              title={`${futureDisplayKey} · Open A1 · click again for later`}
-            >
-              <span className="edition-day-label">Tomorrow</span>
-              <span className="edition-day-date">
-                {formatEditionShort(futureDisplayKey)} · Open
-              </span>
-            </button>
-          </div>
-          <h1 className="nameplate">Heart’s Archive</h1>
-          <hr className="single-rule masthead-rule" />
-        </header>
-      )}
-
-      {tab === "library" && (
-        <section className="panel page library-page">
-          {incomplete && (
-            <IncompleteRail
-              incomplete={incomplete}
-              publishing={publishing}
-              canRetry={false}
-              shaMismatch={false}
-              onRetry={() => {
-                setTab("post");
-                setWriteMode("compose");
-              }}
-              onGiveUp={() => {
-                clearIncomplete();
-                setIncomplete(null);
-                setChunks([]);
-              }}
-              onOpenPost={() => {
-                setTab("post");
-                setWriteMode("compose");
-              }}
-            />
-          )}
-          {backupMsg && <p className="meta">{backupMsg}</p>}
-          {frontOk && <p className="status ok">{frontOk}</p>}
-          {frontError && <p className="status bad">{frontError}</p>}
-          {browseError && <p className="status bad">{browseError}</p>}
-          {labNote && labOn && (
-            <p className="meta lab-banner">{labNote}</p>
-          )}
-
-          {!(doc && !isLocalPreviewDoc(doc.from)) && !reading && (
-            <>
-              {!browsing && filtered.length === 0 ? (
-                <EmptyEdition
-                  deskFace={deskFace}
-                  syncing={browsing}
-                  onWrite={() => {
-                    setWriteMode("compose");
-                    setTab("post");
-                  }}
-                  onSync={() => void refreshLibrary({ mode: "manual" })}
-                />
-              ) : (
-                <div className="broadsheet">
-                  {(hasSectionA ||
-                    insideBands.length > 0 ||
-                    (editionOpen && !press.lead)) && (
-                    <nav
-                      className="section-pages"
-                      aria-label="Edition pages A B C"
-                    >
-                      <span className="section-pages-kicker">Section</span>
-                      {(sectionPages.length ? sectionPages : ["A"]).map(
-                        (letter) =>
-                          sectionPages.length > 1 ? (
-                            <button
-                              key={letter}
-                              type="button"
-                              className={
-                                letter === activePage
-                                  ? "section-page-link is-active"
-                                  : "section-page-link"
-                              }
-                              onClick={() => setPaperPage(letter)}
-                            >
-                              {letter}
-                            </button>
-                          ) : (
-                            <span
-                              key={letter}
-                              className="section-page-link is-active"
-                            >
-                              {letter}
-                            </span>
-                          ),
-                      )}
-                      <span className="section-band-note">
-                        {activePage === "A"
-                          ? " · front · A1–A3"
-                          : activePage === "B"
-                            ? " · after A1–A3"
-                            : ` · continues after ${String.fromCharCode(activePage.charCodeAt(0) - 1)}`}
-                      </span>
-                    </nav>
-                  )}
-                  {(activePage === "A" ||
-                    (!sectionPages.length && editionOpen && !press.lead)) &&
-                    (hasSectionA || (editionOpen && !press.lead)) && (
-                    <section
-                      className="section-band section-band--a"
-                      aria-label="Section A"
-                    >
-                      {press.lead ? (
-                        <>
-                          <SoftHeld
-                            hit={softMuteHit(
-                              press.lead.entry.title,
-                              press.lead.entry.summary,
-                              leadPicture,
-                            )}
-                          >
-                            <button
-                              type="button"
-                              className="a1-banner"
-                              onClick={() => void load(press.lead!.entry.hash)}
-                            >
-                              <span className="a1-hed">
-                                {press.lead.entry.title}
-                              </span>
-                              {press.lead.entry.summary && (
-                                <span className="a1-dek">
-                                  {press.lead.entry.summary}
-                                </span>
-                              )}
-                            </button>
-                          </SoftHeld>
-                          {leadPicture.trim() ? (
-                            <button
-                              type="button"
-                              className="a1-cut"
-                              onClick={() => void load(press.lead!.entry.hash)}
-                              aria-label="Open lead story"
-                            >
-                              <TypeCutPicture
-                                text={leadPicture}
-                                className="a1-cut-pic"
-                              />
-                            </button>
-                          ) : null}
-                          <p className="a1-byline">
-                            By {shortAddr(press.lead.entry.from)}
-                            {formatPostedAt(press.lead.entry.timeStamp)
-                              ? ` · ${formatPostedAt(press.lead.entry.timeStamp)}`
-                              : ""}
-                            {press.front &&
-                            press.front.manifest.toLowerCase() ===
-                              press.lead.entry.hash.toLowerCase()
-                              ? editionOpen
-                                ? ` · A1 ${formatPls(press.front.valueWei)} PLS (open)`
-                                : ` · A1 ${formatPls(press.front.valueWei)} PLS (final)`
-                              : ""}
-                            {` · ${likeCounts.get(press.lead.entry.hash.toLowerCase()) || 0} likes`}
-                            {" · Continued inside →"}
-                          </p>
-                        </>
-                      ) : editionOpen ? (
-                        <div className="a1-unpublished">
-                          <p className="a1-hed">
-                            Tomorrow’s paper — unpublished
-                          </p>
-                          <p className="a1-dek">
-                            No A1 yet — open a story and Buy A1 with PLS (more
-                            than the lead; +1 wei can snipe). Like and tip are
-                            separate. Bids lock at that day’s UTC midnight.
-                          </p>
-                        </div>
-                      ) : null}
-                      {(a2Slot || a3Slot) && (
-                        <div className="a1-grid a1-grid--secondary">
-                          {a2Slot && (
-                            <div className="a1-col">
-                              <SoftHeld
-                                hit={softMuteHit(
-                                  a2Slot.card.entry.title,
-                                  a2Slot.card.entry.summary,
-                                )}
-                              >
-                                <button
-                                  type="button"
-                                  className="story-item lead-col"
-                                  onClick={() =>
-                                    void load(a2Slot.card.entry.hash)
-                                  }
-                                >
-                                  <span className="slot-kicker">
-                                    A2
-                                    {a2Slot.bid
-                                      ? ` · ${formatPls(a2Slot.bid.valueWei)} PLS`
-                                      : ""}
-                                  </span>
-                                  <span className="a1-col-hed">
-                                    {a2Slot.card.entry.title}
-                                  </span>
-                                  {a2Slot.card.entry.summary && (
-                                    <span className="story-dek">
-                                      {a2Slot.card.entry.summary}
-                                    </span>
-                                  )}
-                                  <span className="story-meta">
-                                    {shortAddr(a2Slot.card.entry.from)} ·{" "}
-                                    {likeCounts.get(
-                                      a2Slot.card.entry.hash.toLowerCase(),
-                                    ) || 0}{" "}
-                                    likes
-                                  </span>
-                                </button>
-                              </SoftHeld>
-                            </div>
-                          )}
-                          {a3Slot && (
-                            <div className="a1-col a1-col-mid">
-                              <SoftHeld
-                                hit={softMuteHit(
-                                  a3Slot.card.entry.title,
-                                  a3Slot.card.entry.summary,
-                                )}
-                              >
-                                <button
-                                  type="button"
-                                  className="story-item mid-wrap"
-                                  onClick={() =>
-                                    void load(a3Slot.card.entry.hash)
-                                  }
-                                >
-                                  <span className="slot-kicker">
-                                    A3
-                                    {a3Slot.bid
-                                      ? ` · ${formatPls(a3Slot.bid.valueWei)} PLS`
-                                      : ""}
-                                  </span>
-                                  {a3Slot.card.entry.summary && (
-                                    <span className="story-dek mid-dek-top">
-                                      {a3Slot.card.entry.summary.slice(0, 120)}
-                                      {a3Slot.card.entry.summary.length > 120
-                                        ? "…"
-                                        : ""}
-                                    </span>
-                                  )}
-                                  <span className="story-hed mid-hed">
-                                    {a3Slot.card.entry.title}
-                                  </span>
-                                  <span className="story-meta">
-                                    {shortAddr(a3Slot.card.entry.from)}
-                                  </span>
-                                </button>
-                              </SoftHeld>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </section>
-                  )}
-                  {activeInside && (
-                    <section
-                      className="section-band"
-                      aria-label={`Section ${activeInside.letter}`}
-                    >
-                      <div className="section-band-grid">
-                        {activeInside.slots.map((s) => (
-                          <SoftHeld
-                            key={s.card.entry.hash}
-                            hit={softMuteHit(
-                              s.card.entry.title,
-                              s.card.entry.summary,
-                            )}
-                          >
-                            <button
-                              type="button"
-                              className="story-item section-card"
-                              onClick={() => void load(s.card.entry.hash)}
-                            >
-                              <span className="slot-kicker">
-                                {s.label}
-                                {s.bid
-                                  ? ` · ${formatPls(s.bid.valueWei)} PLS`
-                                  : ""}
-                              </span>
-                              <span className="story-hed">
-                                {s.card.entry.title}
-                              </span>
-                              {s.card.entry.summary && (
-                                <span className="story-dek">
-                                  {s.card.entry.summary.slice(0, 100)}
-                                  {s.card.entry.summary.length > 100 ? "…" : ""}
-                                </span>
-                              )}
-                              <span className="story-meta">
-                                {shortAddr(s.card.entry.from)}
-                              </span>
-                            </button>
-                          </SoftHeld>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-                  {!press.lead &&
-                    !a2Slot &&
-                    !a3Slot &&
-                    insideBands.length === 0 && (
-                      <p className="story-meta">More stories after Sync.</p>
-                    )}
-                </div>
-              )}
-            </>
-          )}
-
-          {(doc || reading || readError) &&
-            !isLocalPreviewDoc(doc?.from) && (
-            <div className="interior">
-              <button
-                type="button"
-                className="interior-back"
-                onClick={() => closeReader()}
-              >
-                ← Front page
-              </button>
-              {readError && (
-                <div className="status-block bad">
-                  <p className="status bad">{readError}</p>
-                </div>
-              )}
-              {reading && !doc && (
-                <p className="meta">Loading from Pulse…</p>
-              )}
-              {doc && (
-                <article className="article article-full">
-                  <p className="side-label">Full article</p>
-                  <h2 className="doc-title">
-                    {doc.title || "(untitled)"}
-                  </h2>
-                  <p className="article-byline">
-                    {isLabTestDoc(doc.from)
-                      ? "local test"
-                      : doc.from
-                        ? shortAddr(doc.from)
-                        : "unknown"}
-                    {formatPostedAt(doc.postedAt)
-                      ? ` · ${formatPostedAt(doc.postedAt)}`
-                      : ""}
-                    {` · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0} likes`}
-                  </p>
-                  {(doc.telegram || doc.twitter || doc.tipWallet) && (
-                    <p className="article-contact meta">
-                      {telegramUrl(doc.telegram) && (
-                        <a
-                          href={telegramUrl(doc.telegram)!}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          TG {displayHandle(doc.telegram)}
-                        </a>
-                      )}
-                      {twitterUrl(doc.twitter) && (
-                        <a
-                          href={twitterUrl(doc.twitter)!}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          X {displayHandle(doc.twitter)}
-                        </a>
-                      )}
-                      {doc.tipWallet && isAddressLike(doc.tipWallet)
-                        ? ` · tip ${shortAddr(doc.tipWallet)}`
-                        : ""}
-                    </p>
-                  )}
-                  <MoneyStrip>
-                  <div className="reader-actions">
-                    <button
-                      type="button"
-                      className={
-                        hasLiked(
-                          likes,
-                          doc.manifestHash,
-                          walletUiOff || !address ? LAB_FROM : address,
-                        )
-                          ? "primary"
-                          : "ghost"
-                      }
-                      disabled={
-                        liking ||
-                        (!walletUiOff &&
-                          (!isConnected ||
-                            wrongChain ||
-                            !walletClient)) ||
-                        hasLiked(
-                          likes,
-                          doc.manifestHash,
-                          walletUiOff || !address ? LAB_FROM : address,
-                        )
-                      }
-                      onClick={() => void likeDoc()}
-                      title={
-                        walletUiOff || !address
-                          ? "Local test like — not on-chain"
-                          : "Burns ≥1 PLS to …feed · extra PLS still one like"
-                      }
-                    >
-                      {liking
-                        ? "…"
-                        : `Like · 1 PLS · ${likeCounts.get(doc.manifestHash.toLowerCase()) || 0}`}
-                    </button>
-                    {doc.from && isConnected && (
-                      <>
-                        <input
-                          type="text"
-                          value={tipAmount}
-                          onChange={(e) => setTipAmount(e.target.value)}
-                          aria-label="Tip amount"
-                          placeholder="Amt"
-                          style={{ maxWidth: "4.5rem" }}
-                        />
-                        <select
-                          value={tipTokenId}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v.startsWith("recent:")) {
-                              setTipTokenId(CUSTOM_TIP_ID);
-                              setTipCustom(v.slice("recent:".length));
-                              return;
-                            }
-                            setTipTokenId(v);
-                          }}
-                          aria-label="Tip token"
-                        >
-                          {TIP_PRESETS.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.symbol}
-                            </option>
-                          ))}
-                          {recentTips.map((a) => (
-                            <option key={a} value={`recent:${a}`}>
-                              Recent {shortAddr(a)}
-                            </option>
-                          ))}
-                          <option value={CUSTOM_TIP_ID}>Custom…</option>
-                        </select>
-                        <button
-                          type="button"
-                          className="ghost"
-                          disabled={wrongChain || tipping || !walletClient}
-                          onClick={() => void tipAuthor()}
-                          title="Tip the writer any Pulse asset — publish/A1 stay PLS-only"
-                        >
-                          {tipping ? "…" : "Tip"}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  {likeError && <p className="status bad">{likeError}</p>}
-                  {likeOk && <p className="status ok">{likeOk}</p>}
-                  {tipError && <p className="status bad">{tipError}</p>}
-                  {tipOk && <p className="status ok">{tipOk}</p>}
-                  {(isConnected || walletUiOff) && (
-                    <FrontBidBar
-                      bidForDay={bidForDay}
-                      frontAmount={frontAmount}
-                      fronting={fronting}
-                      walletUiOff={walletUiOff}
-                      wrongChain={wrongChain}
-                      canSend={!!walletClient && !!publicClient && !wrongChain}
-                      frontWinner={frontWinner}
-                      docManifest={doc.manifestHash}
-                      minOpenDay={minOpenDay}
-                      maxOpenDay={maxOpenDay}
-                      onDay={(d) => {
-                        if (!isOpenPrintedDay(d)) return;
-                        setBidForDay(d);
-                        setEditionDay(d);
-                      }}
-                      onAmount={setFrontAmount}
-                      onBuy={() => void buyFrontPage()}
-                    />
-                  )}
-                  {frontError && <p className="status bad">{frontError}</p>}
-                  {frontOk && <p className="status ok">{frontOk}</p>}
-                  </MoneyStrip>
-                  <details className="more reader-more">
-                    <summary>Cite &amp; tools</summary>
-                    <div className="row wrap">
-                      <a
-                        href={doc.objectUrl}
-                        download={`pulse-doc-${doc.manifestHash.slice(2, 10)}`}
-                      >
-                        <button type="button" className="ghost">
-                          Save
-                        </button>
-                      </a>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => void copyCite()}
-                      >
-                        Cite
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() =>
-                          void navigator.clipboard.writeText(
-                            shareUrl(doc.manifestHash),
-                          )
-                        }
-                      >
-                        Link
-                      </button>
-                      <a
-                        href={SCAN_TX(doc.manifestHash)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ghost link-btn"
-                      >
-                        Tx
-                      </a>
-                    </div>
-                  </details>
-                  <div className="preview">
-                    <Preview doc={doc} />
-                  </div>
-                </article>
-              )}
-            </div>
-          )}
-        </section>
-      )}
-
-      {tab === "post" && (
-        <section className="panel page">
-          <button
-            type="button"
-            className="ghost edition-back"
-            onClick={() => {
-              setWriteMode("compose");
-              setTab("library");
-            }}
-          >
-            ← Back to edition
-          </button>
-          {incomplete && (
-            <IncompleteRail
-              incomplete={incomplete}
-              publishing={publishing}
-              canRetry={
-                !!prepared &&
-                prepared.sha256 === incomplete.sha256 &&
-                !!walletClient &&
-                !walletUiOff &&
-                isConnected &&
-                !wrongChain
-              }
-              shaMismatch={
-                !!prepared && prepared.sha256 !== incomplete.sha256
-              }
-              onRetry={() => {
-                if (walletUiOff || !walletClient) {
-                  setPubError(
-                    deskFace
-                      ? "Stuck publish needs the Press face + wallet to finish on-chain chunks."
-                      : "Connect on Pulse (and Switch network) to Retry the stuck publish.",
-                  );
-                  return;
-                }
-                void runPublish(true);
-              }}
-              onGiveUp={() => {
-                clearIncomplete();
-                setIncomplete(null);
-                setChunks([]);
-              }}
-            />
-          )}
-          {writeMode === "preview" ? (
-            <div className="write-preview">
-              <div className="preview-local-banner">
-                <p className="meta" style={{ margin: 0 }}>
-                  Preview — A1 lead, inside card, and full article. Nothing
-                  on-chain yet.
-                </p>
-                <div className="row wrap" style={{ margin: 0 }}>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => setWriteMode("compose")}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={!prepared || publishing}
-                    onClick={() => clickPublish()}
-                    title={
-                      walletUiOff || !isConnected
-                        ? "Local test — front page, not on-chain"
-                        : undefined
-                    }
-                  >
-                    {publishing ? "…" : "Publish"}
-                  </button>
-                </div>
-              </div>
-              {pubError && <p className="status bad">{pubError}</p>}
-              <div className="write-preview-faces">
-                <section className="write-preview-face write-preview-face--a1">
-                  <p className="side-label">If you win A1</p>
-                  <div className="broadsheet write-preview-mock">
-                    <div className="a1-banner" role="presentation">
-                      <span className="a1-hed">
-                        {title.trim() || "(untitled)"}
-                      </span>
-                      {summary.trim() ? (
-                        <span className="a1-dek">{summary.trim()}</span>
-                      ) : null}
-                    </div>
-                    {pictureText.trim() ? (
-                      <div className="a1-cut" role="presentation">
-                        <TypeCutPicture
-                          text={pictureText}
-                          className="a1-cut-pic"
-                        />
-                      </div>
-                    ) : null}
-                    <p className="a1-byline">
-                      By {address ? shortAddr(address) : "you"}
-                      {" · A1 preview · Continued inside →"}
-                    </p>
-                  </div>
-                </section>
-                <section className="write-preview-face write-preview-face--inside">
-                  <p className="side-label">If you don’t get A1</p>
-                  <div className="a1-col write-preview-mock">
-                    <div className="story-item lead-col" role="presentation">
-                      <span className="a1-col-hed">
-                        {title.trim() || "(untitled)"}
-                      </span>
-                      {summary.trim() ? (
-                        <span className="story-dek">{summary.trim()}</span>
-                      ) : null}
-                      <span className="story-meta">
-                        {address ? shortAddr(address) : "you"} · inside card
-                      </span>
-                    </div>
-                  </div>
-                  <p className="meta write-preview-note">
-                    Column / brief face — no A1 banner, picture stays inside the
-                    full article.
-                  </p>
-                </section>
-              </div>
-              <article className="article article-preview">
-                <p className="side-label">Full article</p>
-                <h2 className="doc-title">{title.trim() || "(untitled)"}</h2>
-                <p className="article-byline">Local preview · not published</p>
-                {summary.trim() ? (
-                  <p className="a1-dek write-preview-dek">{summary.trim()}</p>
-                ) : null}
-                {(telegram.trim() ||
-                  twitter.trim() ||
-                  tipWallet.trim()) && (
-                  <p className="article-contact meta">
-                    {telegramUrl(telegram) && (
-                      <a
-                        href={telegramUrl(telegram)!}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        TG {displayHandle(telegram)}
-                      </a>
-                    )}
-                    {twitterUrl(twitter) && (
-                      <a
-                        href={twitterUrl(twitter)!}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        X {displayHandle(twitter)}
-                      </a>
-                    )}
-                    {tipWallet.trim() && isAddressLike(tipWallet.trim())
-                      ? ` · tip ${shortAddr(tipWallet.trim())}`
-                      : ""}
-                  </p>
-                )}
-                <SoftHeld
-                  hit={softMuteHit(title, pictureText, bodyText)}
-                  label="Read anyway"
-                >
-                  <div className="article-stack">
-                    {pictureText.trim() ? (
-                      <TypeCutPicture
-                        text={pictureText}
-                        className="article-picture"
-                      />
-                    ) : null}
-                    {bodyText.trim() || !pictureText.trim() ? (
-                      <pre className="article-body">{bodyText}</pre>
-                    ) : null}
-                  </div>
-                </SoftHeld>
-              </article>
-            </div>
-          ) : (
-          <div className="post-layout">
-            <div className="post-compose">
-              <div className="row">
-                <input
-                  type="text"
-                  placeholder="Title · max 72 chars"
-                  maxLength={72}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-              <div className="compose-picture">
-                <div className="compose-picture-head">
-                  <p className="meta type-cut-hint">
-                    Picture (type cut) — optional · paste ASCII · click to edit
-                  </p>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      void (async () => {
-                        try {
-                          await copyAsciiArtPrompt();
-                          setAsciiPromptMsg(
-                            "Prompt copied — paste into any AI with your image",
-                          );
-                        } catch {
-                          setAsciiPromptMsg(
-                            "Copy failed — open /ascii-art-prompt.txt",
-                          );
-                        }
-                      })();
-                    }}
-                  >
-                    Copy AI prompt
-                  </button>
-                </div>
-                {asciiPromptMsg && (
-                  <p className="meta">{asciiPromptMsg}</p>
-                )}
-                <textarea
-                  className="type-cut-paste compose-paste"
-                  rows={Math.min(
-                    28,
-                    Math.max(10, pictureText.split("\n").length + 2),
-                  )}
-                  spellCheck={false}
-                  wrap="off"
-                  placeholder="Paste ASCII here, then click and edit by hand…"
-                  aria-label="ASCII picture — editable"
-                  value={pictureText}
-                  onPaste={(e) => {
-                    const text = e.clipboardData.getData("text");
-                    if (!text.trim()) return;
-                    e.preventDefault();
-                    setPictureText(normalizeTypeCut(text));
-                  }}
-                  onChange={(e) => setPictureText(e.target.value)}
-                  onBlur={() => {
-                    if (pictureText.trim()) {
-                      setPictureText(normalizeTypeCut(pictureText));
-                    }
-                  }}
-                />
-                {pictureText.trim() ? (
-                  <>
-                    <TypeCutPicture
-                      text={pictureText}
-                      className="compose-picture-fit"
-                    />
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => setPictureText("")}
-                    >
-                      Remove picture
-                    </button>
-                  </>
-                ) : null}
-              </div>
-              <textarea
-                placeholder="Body — story text below the picture…"
-                value={bodyText}
-                onChange={(e) => setBodyText(e.target.value)}
-                rows={12}
-              />
-            </div>
-            <aside className="post-side">
-              <div className="post-side-card">
-                <p className="side-label">Ready</p>
-                {prepared ? (
-                  <ul className="side-stats">
-                    <li>{(prepared.originalBytes / 1024).toFixed(1)} KB</li>
-                    <li>
-                      {prepared.encoding === "gzip"
-                        ? `gz −${prepared.savedPct}%`
-                        : "raw"}
-                    </li>
-                    <li>{prepared.parts.length + 1} txs</li>
-                    <li>cap {MAX_PUBLISH_BYTES / 1024} KB</li>
-                  </ul>
-                ) : (
-                  <p className="meta">
-                    {gasHint && !prepared
-                      ? gasHint
-                      : "Type some text (under cap)."}
-                  </p>
-                )}
-                {gasHint && prepared && (
-                  <p className="meta">{gasHint}</p>
-                )}
-                {shortFunds && prepared && (
-                  <p className="status bad">
-                    Not enough PLS for gas — add PLS or shorten the post.
-                  </p>
-                )}
-                <label className="post-meta-field">
-                  <span>Open edition</span>
-                  <input
-                    type="date"
-                    value={bidForDay}
-                    min={minOpenDay}
-                    max={maxOpenDay}
-                    onChange={(e) => {
-                      const d = e.target.value;
-                      if (!isOpenPrintedDay(d)) return;
-                      setBidForDay(d);
-                    }}
-                    aria-label="Which open paper to publish into"
-                  />
-                </label>
-                <div className="post-actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    disabled={!publishSource}
-                    onClick={() => previewLocalPost()}
-                    title="Local look only — does not publish on-chain"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={!prepared || publishing}
-                    onClick={() => clickPublish()}
-                    title={
-                      walletUiOff || !isConnected
-                        ? "Local test — front page, not on-chain"
-                        : undefined
-                    }
-                  >
-                    {publishing ? "…" : "Publish"}
-                  </button>
-                  {canRetry && (
-                    <button
-                      type="button"
-                      disabled={publishing || !walletClient}
-                      onClick={() => void runPublish(true)}
-                    >
-                      Retry
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => resetCompose()}
-                  >
-                    Clear
-                  </button>
-                </div>
-                <p className="meta a1-price-hint">{a1PriceHint}</p>
-                <p className="meta">
-                  Preview = faces only. Desk = local publish. Press = on-chain
-                  when connected.
-                </p>
-                {wrongChain && isConnected && (
-                  <p className="status bad">
-                    Wrong network — hit Switch to Pulse in the top bar.
-                  </p>
-                )}
-                {pubError && <p className="status bad">{pubError}</p>}
-              </div>
-              <div className="post-side-card post-meta-card">
-                <p className="side-label">Details</p>
-                <p className="meta post-meta-lead">
-                  Optional — helps readers find and tip you.
-                </p>
-                <label className="post-meta-field">
-                  <span>Summary</span>
-                  <input
-                    type="text"
-                    placeholder="One-line dek · max 80"
-                    maxLength={80}
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                  />
-                  <span className="post-meta-hint">
-                    {summary.length}/80 · A1 one-liner only
-                  </span>
-                </label>
-                <label className="post-meta-field">
-                  <span>Tags</span>
-                  <input
-                    type="text"
-                    placeholder="hex, news  or  #hex #news"
-                    value={tagsRaw}
-                    onChange={(e) => setTagsRaw(e.target.value)}
-                  />
-                  <span className="post-meta-hint">Comma or # — both fine</span>
-                </label>
-                <div className="post-meta-row">
-                  <label className="post-meta-field">
-                    <span>Language</span>
-                    <select
-                      value={lang}
-                      onChange={(e) => setLang(e.target.value)}
-                    >
-                      {withCurrentOption(LANG_OPTIONS, lang).map((o) => (
-                        <option key={o.value || "lang-empty"} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="post-meta-field">
-                    <span>License</span>
-                    <select
-                      value={license}
-                      onChange={(e) => setLicense(e.target.value)}
-                    >
-                      {withCurrentOption(LICENSE_OPTIONS, license).map((o) => (
-                        <option key={o.value || "lic-empty"} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <label className="post-meta-field">
-                  <span>Telegram</span>
-                  <input
-                    type="text"
-                    placeholder="@handle"
-                    value={telegram}
-                    onChange={(e) => setTelegram(e.target.value)}
-                    spellCheck={false}
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="post-meta-field">
-                  <span>Twitter / X</span>
-                  <input
-                    type="text"
-                    placeholder="@handle"
-                    value={twitter}
-                    onChange={(e) => setTwitter(e.target.value)}
-                    spellCheck={false}
-                    autoComplete="off"
-                  />
-                </label>
-                <label className="post-meta-field">
-                  <span>Tip wallet</span>
-                  <input
-                    type="text"
-                    placeholder="0x… (optional — else your publish address)"
-                    value={tipWallet}
-                    onChange={(e) => setTipWallet(e.target.value.trim())}
-                    spellCheck={false}
-                  />
-                </label>
-                <label className="post-meta-field">
-                  <span>Replaces</span>
-                  <input
-                    type="text"
-                    placeholder="0x… prior story (series)"
-                    value={replaces}
-                    onChange={(e) => setReplaces(e.target.value.trim())}
-                    spellCheck={false}
-                  />
-                </label>
-              </div>
-              {lastManifest && (
-                <div className="live-strip post-side-card">
-                  <p className="status ok" style={{ margin: 0 }}>
-                    You’re live
-                  </p>
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => {
-                      setWriteMode("compose");
-                      setTab("library");
-                      void load(lastManifest);
-                    }}
-                  >
-                    Open full article
-                  </button>
-                  <a
-                    className="ghost link-btn"
-                    href={SCAN_TX(lastManifest)}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={lastManifest}
-                  >
-                    Tx
-                  </a>
-                </div>
-              )}
-              {chunks.length > 0 && (
-                <div className="chunks">
-                  {chunks.map((c) => (
-                    <div key={c.index} className={`chip ${c.status}`}>
-                      {c.index + 1}/{c.total} {c.status}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </aside>
-          </div>
-          )}
-        </section>
-      )}
+      <ArchiveUiProvider
+        value={{
+    a1PriceHint,
+    a2Slot,
+    a3Slot,
+    activeInside,
+    activePage,
+    address,
+    asciiPromptMsg,
+    backupMsg,
+    bidForDay,
+    bodyText,
+    browseError,
+    browsing,
+    buyFrontPage,
+    canRetry,
+    chunks,
+    clickPublish,
+    closeReader,
+    copyCite,
+    deskFace,
+    doc,
+    editionCursorKey,
+    editionOpen,
+    filtered,
+    formatEditionShort,
+    frontAmount,
+    frontError,
+    frontOk,
+    frontWinner,
+    fronting,
+    futureDisplayKey,
+    gasHint,
+    hasSectionA,
+    incomplete,
+    insideBands,
+    isConnected,
+    labNote,
+    labOn,
+    lang,
+    lastManifest,
+    leadPicture,
+    license,
+    likeCounts,
+    likeDoc,
+    likeError,
+    likeOk,
+    likes,
+    liking,
+    load,
+    maxOpenDay,
+    minOpenDay,
+    pastDisplayKey,
+    pickEditionDay,
+    pictureText,
+    prepared,
+    press,
+    previewLocalPost,
+    pubError,
+    publicClient,
+    publishSource,
+    publishing,
+    readError,
+    reading,
+    recentTips,
+    refreshLibrary,
+    replaces,
+    resetCompose,
+    runPublish,
+    sectionPages,
+    setAsciiPromptMsg,
+    setBidForDay,
+    setBodyText,
+    setChunks,
+    setEditionDay,
+    setFrontAmount,
+    setIncomplete,
+    setLang,
+    setLicense,
+    setPaperPage,
+    setPictureText,
+    setPubError,
+    setReplaces,
+    setSummary,
+    setTab,
+    setTagsRaw,
+    setTelegram,
+    setTipAmount,
+    setTipCustom,
+    setTipTokenId,
+    setTipWallet,
+    setTitle,
+    setTwitter,
+    setWriteMode,
+    shortFunds,
+    stepEditionFuture,
+    stepEditionPast,
+    summary,
+    tagsRaw,
+    telegram,
+    tipAmount,
+    tipAuthor,
+    tipError,
+    tipOk,
+    tipTokenId,
+    tipWallet,
+    tipping,
+    title,
+    todayKey,
+    twitter,
+    walletClient,
+    walletUiOff,
+    writeMode,
+    wrongChain,
+        }}
+      >
+        {tab === "library" && <LibraryPage />}
+        {tab === "post" && <PostPage />}
+      </ArchiveUiProvider>
 
       {citeMsg && <div className="toast">{citeMsg}</div>}
     </div>
