@@ -71,7 +71,7 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 3. **Buy A1–A3** → PLS front-bids; top 3 own the A face; next ranks fill **B1+** then **C/D**
 4. **Like / tip** → on-chain sign-off; tip pHEX / INC / etc. to the author
 5. **Edition** → Today · Final (closed) · → Tomorrow · Open (unpublished A1 race)
-6. **Themes** → Press (default broadsheet), plus Sailor / Venus / Operator / Pulse packs
+6. **Themes** → Venus (Sailor Venus) default · Press broadsheet · Operator · Pulse
 
 ---
 

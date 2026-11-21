@@ -17,10 +17,10 @@ export type ThemeIndex = {
 };
 
 const FONT_LINK_ID = "ha-theme-fonts";
-/** v3 — Venus (press) is the default; ignore older keys that stuck on Venus. */
-const STORAGE_KEY = "hearts-archive-theme-v3";
+/** v4 — Venus = Sailor Venus pack (id: venus). */
+const STORAGE_KEY = "hearts-archive-theme-v4";
 
-export function getStoredThemeId(fallback = "press"): string {
+export function getStoredThemeId(fallback = "venus"): string {
   try {
     return localStorage.getItem(STORAGE_KEY) || fallback;
   } catch {
@@ -87,13 +87,13 @@ export function applyThemePack(pack: ThemePack) {
 
 export async function loadAndApplyTheme(id?: string): Promise<ThemePack> {
   const index = await fetchThemeIndex().catch(() => ({
-    default: "press",
-    packs: ["press"],
+    default: "venus",
+    packs: ["venus"],
   }));
-  const wanted = id || getStoredThemeId(index.default || "press");
+  const wanted = id || getStoredThemeId(index.default || "venus");
   const pick = index.packs.includes(wanted)
     ? wanted
-    : index.default || index.packs[0] || "press";
+    : index.default || index.packs[0] || "venus";
   const pack = await fetchThemePack(pick);
   applyThemePack(pack);
   return pack;

@@ -15,7 +15,7 @@ export function ThemePicker({ onApplied }: Props) {
   const [items, setItems] = useState<
     { id: string; name: string; swatch?: string; tagline?: string }[]
   >([]);
-  const [active, setActive] = useState(() => getStoredThemeId("press"));
+  const [active, setActive] = useState(() => getStoredThemeId("venus"));
 
   useEffect(() => {
     void listThemeSummaries().then(setItems);
