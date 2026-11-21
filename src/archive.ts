@@ -8,6 +8,7 @@ import {
   type DocType,
   type ManifestPayload,
 } from "./protocol";
+import { isDustFrontWei } from "./griefFilter";
 
 export type ArchiveEntry = {
   hash: Hash;
@@ -194,6 +195,11 @@ export async function fetchAddressTxsPaged(
      * Used for “since last Sync, capped at 30d” — not day-by-day calls.
      */
     stopOlderThanUnix?: number;
+    /**
+     * Drop empty / non-archive junk from the retained row set (still scanned
+     * for known-hash early-stop). Default true for sink grief survival.
+     */
+    dropNoise?: boolean;
   },
 ): Promise<V2Tx[]> {
   // Gentle defaults: one newest-first stream (not a request per day).
@@ -204,11 +210,26 @@ export async function fetchAddressTxsPaged(
   const known = opts?.knownHashes;
   const pageGapMs = opts?.pageGapMs ?? 350;
   const stopOlderThanUnix = opts?.stopOlderThanUnix;
+  const dropNoise = opts?.dropNoise !== false;
   const out: V2Tx[] = [];
   const seen = new Set<string>();
   let pageParams: PageParams | null = null;
   let knownStreak = 0;
   let archiveHits = 0;
+
+  function isArchiveSignal(tx: V2Tx): boolean {
+    if (!tx.raw_input || tx.raw_input === "0x") return false;
+    try {
+      const raw = tx.raw_input as Hex;
+      return !!(
+        tryParseManifest(raw) ||
+        tryParseLike(raw) ||
+        tryParseFrontBid(raw)
+      );
+    } catch {
+      return false;
+    }
+  }
 
   for (let page = 0; page < maxPages && out.length < maxItems; page++) {
     if (page > 0 && pageGapMs > 0) {
@@ -235,18 +256,11 @@ export async function fetchAddressTxsPaged(
         return out;
       }
 
-      out.push(tx);
-      // Count parseable archive/like/front payloads — spam dust without JSON
-      // still burns pages, but we can early-exit once we have enough signal.
-      if (tx.raw_input && tx.raw_input !== "0x") {
-        try {
-          const raw = tx.raw_input as Hex;
-          if (tryParseManifest(raw) || tryParseLike(raw) || tryParseFrontBid(raw)) {
-            archiveHits += 1;
-          }
-        } catch {
-          /* */
-        }
+      const signal = isArchiveSignal(tx);
+      if (signal) archiveHits += 1;
+      // Retain signal (+ already-known hashes); drop pure grief noise.
+      if (!dropNoise || signal || (known != null && known.has(h))) {
+        out.push(tx);
       }
       if (known && stopAfterKnown > 0) {
         if (known.has(h)) {
@@ -383,7 +397,7 @@ export function collectFrontBids(rows: V2Tx[]): FrontBidEntry[] {
     const bid = tryParseFrontBid(tx.raw_input as Hex);
     if (!bid) continue;
     const valueWei = txValueWei(tx);
-    if (valueWei <= 0n) continue;
+    if (valueWei <= 0n || isDustFrontWei(valueWei)) continue;
     const ts = tx.timestamp ? Date.parse(tx.timestamp) / 1000 : 0;
     out.push({
       hash: tx.hash.toLowerCase() as Hash,

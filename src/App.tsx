@@ -26,6 +26,7 @@ import { isDeskFace } from "./archiveFace";
 import { EmptyEdition } from "./EmptyEdition";
 import { FrontBidBar, minA1Wei } from "./FrontBidBar";
 import { IncompleteRail } from "./IncompleteRail";
+import { MoneyStrip } from "./MoneyStrip";
 import { computeSyncLimits } from "./syncLimits";
 import {
   DUEL_A,
@@ -105,7 +106,7 @@ import {
 } from "./catalog";
 import { loadLocalCatalog } from "./catalogLocal";
 import { loadLabSeed } from "./labSeed";
-import { isLabMode, setLabMode } from "./labMode";
+import { isLabMode, labOpenedViaQuery, setLabMode } from "./labMode";
 import { listCachedLikes, upsertCachedLikes } from "./likesCache";
 import { clearDraft, loadDraft, saveDraft } from "./drafts";
 import {
@@ -331,9 +332,12 @@ export function App() {
   const walletUiOff = deskFace || labOn;
   const entriesRef = useRef(entries);
   const openHashRef = useRef<string | null>(null);
-  const loadRef = useRef<(h: Hash, opts?: { goRead?: boolean }) => Promise<void>>(
-    async () => {},
-  );
+  const loadRef = useRef<
+    (h: Hash, opts?: { goRead?: boolean }) => Promise<boolean>
+  >(async () => false);
+  const refreshLibraryRef = useRef<
+    ((opts?: { mode?: "manual" | "publish" }) => Promise<void>) | null
+  >(null);
 
   /** Leave the interior reader — Front page / Esc / cleared deep-link. */
   const closeReader = useCallback(() => {
@@ -532,11 +536,11 @@ export function App() {
   );
 
   const load = useCallback(
-    async (manifestHash: Hash, opts?: { goRead?: boolean }) => {
+    async (manifestHash: Hash, opts?: { goRead?: boolean }): Promise<boolean> => {
       const key = manifestHash.toLowerCase();
       // Same doc already showing — don't tear down reader (stops flash)
       if (openHashRef.current === key && opts?.goRead !== false) {
-        return;
+        return true;
       }
       openHashRef.current = key;
       if (opts?.goRead !== false) setTab("library");
@@ -571,7 +575,7 @@ export function App() {
             postedAt: cached.postedAt,
             source: "Local copy",
           });
-          return;
+          return true;
         }
 
         setReading(true);
@@ -586,7 +590,7 @@ export function App() {
               rpcReady: false,
             }) || "RPC not ready — Sync once while online, then re-open.",
           );
-          return;
+          return false;
         }
 
         const { meta, bytes, from: txFrom } = await readDocument(
@@ -646,6 +650,7 @@ export function App() {
           postedAt: postedAt || undefined,
           source: "Fetched from Pulse · saved locally",
         });
+        return true;
       } catch (e) {
         const online =
           typeof navigator === "undefined" ? true : navigator.onLine;
@@ -658,6 +663,7 @@ export function App() {
         setReadError(!online && offlineMsg ? offlineMsg : msg);
         setDoc(null);
         openHashRef.current = null;
+        return false;
       } finally {
         setReading(false);
       }
@@ -828,16 +834,35 @@ export function App() {
   );
 
   useEffect(() => {
+    refreshLibraryRef.current = refreshLibrary;
+  }, [refreshLibrary]);
+
+  const openShare = useCallback(async (h: Hash) => {
+    setHashInput(h);
+    setTab("library");
+    let ok = await loadRef.current(h);
+    if (ok) return;
+    // Missing locally / RPC miss — Sync tip once, then reopen (no chain write).
+    await refreshLibraryRef.current?.({ mode: "manual" });
+    ok = await loadRef.current(h);
+    if (!ok) {
+      setReadError(
+        (prev) =>
+          prev ||
+          "Couldn’t open this link — Sync again when the explorer is up, or check the hash.",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
     const fromRoute = parseRouteHash(window.location.hash);
     if (fromRoute) {
-      setHashInput(fromRoute);
-      void loadRef.current(fromRoute);
+      void openShare(fromRoute);
     }
     const onHash = () => {
       const h = parseRouteHash(window.location.hash);
       if (h) {
-        setHashInput(h);
-        void loadRef.current(h);
+        void openShare(h);
         return;
       }
       // Browser ← / cleared # — drop the reader (was a no-op before)
@@ -2041,7 +2066,8 @@ export function App() {
                   }}
                 />
               </label>
-              <label className="check">
+              {(deskFace || labOn || labOpenedViaQuery()) && (
+              <label className="check" title="Demo seed only — not live …feed. Prefer ?lab=1 on Press.">
                 <input
                   type="checkbox"
                   checked={labOn}
@@ -2075,8 +2101,9 @@ export function App() {
                     }
                   }}
                 />
-                Lab seed
+                Lab seed (demo)
               </label>
+              )}
               <details className="hash-open" style={{ width: "100%" }}>
                 <summary>Open by link</summary>
                 <div className="row">
@@ -2093,7 +2120,7 @@ export function App() {
                     disabled={reading || !parseRouteHash(hashInput)}
                     onClick={() => {
                       const h = parseRouteHash(hashInput);
-                      if (h) void load(h);
+                      if (h) void openShare(h);
                     }}
                   >
                     {reading ? "…" : "Open"}
@@ -2580,6 +2607,7 @@ export function App() {
                         : ""}
                     </p>
                   )}
+                  <MoneyStrip>
                   <div className="reader-actions">
                     <button
                       type="button"
@@ -2689,6 +2717,7 @@ export function App() {
                   )}
                   {frontError && <p className="status bad">{frontError}</p>}
                   {frontOk && <p className="status ok">{frontOk}</p>}
+                  </MoneyStrip>
                   <details className="more reader-more">
                     <summary>Cite &amp; tools</summary>
                     <div className="row wrap">
@@ -2757,15 +2786,20 @@ export function App() {
               canRetry={
                 !!prepared &&
                 prepared.sha256 === incomplete.sha256 &&
-                (!!walletClient || walletUiOff)
+                !!walletClient &&
+                !walletUiOff &&
+                isConnected &&
+                !wrongChain
               }
               shaMismatch={
                 !!prepared && prepared.sha256 !== incomplete.sha256
               }
               onRetry={() => {
-                if (walletUiOff) {
+                if (walletUiOff || !walletClient) {
                   setPubError(
-                    "Stuck publish is on-chain — connect Press wallet to Retry.",
+                    deskFace
+                      ? "Stuck publish needs the Press face + wallet to finish on-chain chunks."
+                      : "Connect on Pulse (and Switch network) to Retry the stuck publish.",
                   );
                   return;
                 }

@@ -24,11 +24,18 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: typecheck · lint · unit
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
       - name: Build Press face for Pages
         env:
           VITE_BASE: /hearts-archive/
           VITE_ARCHIVE_FACE: press
         run: npm run build
+      - name: Pages dist smoke
+        run: npm run smoke:pages
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

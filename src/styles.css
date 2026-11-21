@@ -1463,6 +1463,49 @@ a.link-btn {
     justify-content: center;
     text-align: center;
   }
+
+  /* Mobile paper: stack A face, keep bid chrome usable */
+  .a1-grid,
+  .a1-grid--secondary,
+  .press-secondary {
+    grid-template-columns: 1fr !important;
+  }
+  .library-reader {
+    position: static;
+    max-height: none;
+    border-left: 0;
+    padding-left: 0;
+    margin-top: 0.75rem;
+  }
+  .front-bid-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .front-bid-bar input[type="text"],
+  .front-bid-bar input[type="date"] {
+    max-width: none;
+    width: 100%;
+  }
+  .reader-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .money-strip-legend {
+    font-size: 0.72rem;
+    line-height: 1.35;
+  }
+  .nameplate {
+    font-size: clamp(1.4rem, 8vw, 2rem);
+  }
+}
+
+.money-strip {
+  margin: 0.35rem 0 0.5rem;
+}
+
+.money-strip-legend {
+  margin: 0 0 0.45rem;
+  max-width: 40rem;
 }
 
 .front-bid-bar {

@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node sim/smoke.mjs",
+    "smoke:pages": "node scripts/pages-smoke.mjs",
     "check": "node scripts/check.mjs",
     "catalog": "node scripts/build-catalog.mjs",
     "sim": "node sim/run-sim.mjs",

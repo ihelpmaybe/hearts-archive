@@ -1,0 +1,29 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: typecheck · lint · unit · smoke
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
+          npm run smoke
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: anvil dry (A1 gate)
+        run: npm run sim:dry
+      - name: Pages build smoke
+        run: npm run smoke:pages
