@@ -1,5 +1,7 @@
 /** Drop-in theme packs — CSS vars only. No custom engine. */
 
+import { publicUrl } from "./publicUrl";
+
 export type ThemePack = {
   id: string;
   name: string;
@@ -37,7 +39,7 @@ export function storeThemeId(id: string) {
 }
 
 export async function fetchThemeIndex(): Promise<ThemeIndex> {
-  const res = await fetch(`/themes/index.json?ts=${Date.now()}`, {
+  const res = await fetch(`${publicUrl("themes/index.json")}?ts=${Date.now()}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`theme index ${res.status}`);
@@ -45,9 +47,10 @@ export async function fetchThemeIndex(): Promise<ThemeIndex> {
 }
 
 export async function fetchThemePack(id: string): Promise<ThemePack> {
-  const res = await fetch(`/themes/${encodeURIComponent(id)}.json?ts=${Date.now()}`, {
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${publicUrl(`themes/${encodeURIComponent(id)}.json`)}?ts=${Date.now()}`,
+    { cache: "no-store" },
+  );
   if (!res.ok) throw new Error(`theme ${id}: ${res.status}`);
   return (await res.json()) as ThemePack;
 }

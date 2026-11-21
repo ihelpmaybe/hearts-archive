@@ -3,6 +3,7 @@ import type { ArchiveEntry, FrontBidEntry, LikeEntry } from "./archive";
 import type { DocType } from "./protocol";
 import { putCachedDoc } from "./cache";
 import { upsertCatalog } from "./catalog";
+import { publicUrl } from "./publicUrl";
 
 export type LabSeed = {
   generatedAt?: string;
@@ -48,7 +49,7 @@ export async function loadLabSeed(): Promise<{
   meta: { note?: string; generatedAt?: string };
 } | null> {
   try {
-    const res = await fetch(`/lab-seed.json?ts=${Date.now()}`, {
+    const res = await fetch(`${publicUrl("lab-seed.json")}?ts=${Date.now()}`, {
       cache: "no-store",
     });
     if (!res.ok) return null;

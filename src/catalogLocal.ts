@@ -1,6 +1,7 @@
 import type { Hash } from "viem";
 import type { ArchiveEntry } from "./archive";
 import type { DocType } from "./protocol";
+import { publicUrl } from "./publicUrl";
 
 type CatalogFile = {
   entries?: Array<{
@@ -23,7 +24,7 @@ type CatalogFile = {
 /** Optional static file from `npm run catalog` → public/catalog.json */
 export async function loadLocalCatalog(): Promise<ArchiveEntry[]> {
   try {
-    const res = await fetch(`/catalog.json?ts=${Date.now()}`, {
+    const res = await fetch(`${publicUrl("catalog.json")}?ts=${Date.now()}`, {
       cache: "no-store",
     });
     if (!res.ok) return [];
