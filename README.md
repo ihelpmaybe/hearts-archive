@@ -59,7 +59,7 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 |---|---|
 | Feeds bury signal in chrome | Broadsheet front: nameplate, A1, columns |
 | “Pinning” is social theater | **Pay PLS** to `0x…feed` to hold the lead |
-| Media boards invite porn | **Text-only publish** + soft mute on the face |
+| Image boards drown the signal | **Text-only publish** + soft mute on the face |
 | Yesterday disappears | **Daily editions** from bid timestamps (UTC) |
 
 ---
