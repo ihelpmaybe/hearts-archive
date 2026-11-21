@@ -126,6 +126,8 @@ On-chain `app` id stays `pulse-archive` for Raven compatibility.
 - Lab ≠ mainnet — Foundry burns nothing on Pulse
 - Soft mute is a blunt keyword screen for the paper face
 - Tips use **Pulse** token addresses (pHEX ≠ Ethereum HEX)
+- **Money map:** Likes / A1 bids **burn PLS to `0x…feed`**. Publish writes data (**0 PLS** value). Tips **`transfer`** to the author (or their tip wallet) — no `approve`, no background spend. Details: [`SECURITY.md`](./SECURITY.md)
+- Wallet scanners may warn on connect because burns-to-`…feed` look drain-like; every spend still needs your confirm
 
 ---
 

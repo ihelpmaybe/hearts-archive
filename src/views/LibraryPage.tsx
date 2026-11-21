@@ -688,6 +688,20 @@ export function LibraryPage() {
                           </>
                         )}
                       </div>
+                      {doc.from && isConnected && (
+                        <p className="meta tip-to-hint">
+                          Tip goes to{" "}
+                          {shortAddr(
+                            doc.tipWallet && isAddressLike(doc.tipWallet)
+                              ? doc.tipWallet
+                              : doc.from,
+                          )}
+                          {doc.tipWallet && isAddressLike(doc.tipWallet)
+                            ? " (story tip wallet)"
+                            : " (author)"}
+                          — check that address in your wallet popup
+                        </p>
+                      )}
                       {likeError && <p className="status bad">{likeError}</p>}
                       {likeOk && <p className="status ok">{likeOk}</p>}
                       {tipError && <p className="status bad">{tipError}</p>}

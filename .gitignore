@@ -23,6 +23,9 @@ broadcast/
 # one-off local splice leftovers (not product)
 scripts/library-section.tsx.txt
 scripts/splice-broadsheet.mjs
+scripts/splice-sections.mjs
+scripts/move-filters-rail.mjs
+scripts/_scrub-*.sh
 
 # no face pictures — text broadsheet only
 public/plates/
