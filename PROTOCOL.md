@@ -2,7 +2,16 @@
 
 On-chain broadsheet for PulseChain. Write text to `0x…feed`, chunks to `0x0`. Highest PLS front-bid owns A1. Private desk tool — not public product infra.
 
-## Use it
+## Faces (one repo)
+
+| Face | Command | Wallet | Publish |
+|---|---|---|---|
+| **Desk** | `npm run dev` | off | local shelf |
+| **Press** | `npm run build` / `dev:press` | on | chain → `…feed` |
+
+Override: `VITE_ARCHIVE_FACE=desk|press`. Do **not** split into a second GitHub.
+
+## Use it (Press)
 
 1. **Connect** wallet on Pulse (top bar). Need a little PLS for gas.
 2. **Post** → write text → **Publish**. When it lands you see **You’re live** → Open in reader.

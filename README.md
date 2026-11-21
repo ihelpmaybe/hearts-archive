@@ -22,11 +22,20 @@ Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The des
 
 ```bash
 npm install
-npm run check    # typecheck · lint · unit · smoke · lab
-npm run dev      # http://127.0.0.1:5177
+npm run check      # typecheck · lint · unit · smoke · lab
+npm run dev        # Desk face — local publish, no wallet gate (:5177)
+npm run dev:press  # Press face — Connect / chain Publish / Like / Tip / A1
+npm run build      # Press production bundle
 ```
 
-Connect on **Pulse**. Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
+**One GitHub, two faces** — not two repos.
+
+| Face | Command | Wallet | Publish |
+|---|---|---|---|
+| **Desk** (develop) | `npm run dev` | off | local shelf + test A1 |
+| **Press** (people) | `npm run build` / `dev:press` | on | on-chain to `…feed` |
+
+Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
 
 Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 
@@ -48,8 +57,10 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 | Script | What |
 |---|---|
 | `npm run check` | Gate before you share a branch |
-| `npm run dev` | Vite on `:5177` |
-| `npm run build` | Production build |
+| `npm run dev` / `dev:desk` | Desk face on `:5177` |
+| `npm run dev:press` | Press face locally (wallets on) |
+| `npm run build` / `build:press` | Press production bundle |
+| `npm run build:desk` | Desk static build (optional) |
 | `npm run sim:lab` | Local anvil publish / read / like (no Pulse trail) |
 | `npm run sim:dry` | Post → Sync → Like → Tip on anvil |
 | `npm run sim:seed` | Rebuild `public/lab-seed.json` |

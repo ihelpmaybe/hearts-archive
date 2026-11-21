@@ -23,6 +23,7 @@ import {
 import { WalletBar } from "./WalletBar";
 import { ThemePicker } from "./ThemePicker";
 import { TypeCutPicture } from "./TypeCutPicture";
+import { isDeskFace } from "./archiveFace";
 import { copyAsciiArtPrompt } from "./asciiArtPrompt";
 import {
   displayHandle,
@@ -402,8 +403,13 @@ export function App() {
   >([]);
 
   const wrongChain = isConnected && chainId !== pulsechain.id;
-  /** Dev / Lab: no wallet chrome — Preview + Lab cover testing without a wallet. */
-  const walletUiOff = labOn || import.meta.env.DEV;
+  /**
+   * Desk face (npm run dev): no wallet gatekeeping — local publish.
+   * Press face (npm run build / dev:press): wallets on unless Lab seed.
+   * Same repo — not a second GitHub.
+   */
+  const deskFace = isDeskFace();
+  const walletUiOff = deskFace || labOn;
   const entriesRef = useRef(entries);
   const openHashRef = useRef<string | null>(null);
   const loadRef = useRef<(h: Hash, opts?: { goRead?: boolean }) => Promise<void>>(
@@ -1887,12 +1893,20 @@ export function App() {
             }}
           />
         )}
-        {walletUiOff && (
+        {deskFace && (
           <span
             className="meta rail-lab"
-            title="Wallet chrome off for testing (dev / lab)"
+            title="Desk face — local publish, no wallet gate. Press = npm run build or npm run dev:press"
           >
-            Wallet off
+            Desk
+          </span>
+        )}
+        {!deskFace && labOn && (
+          <span
+            className="meta rail-lab"
+            title="Lab seed on — wallet chrome off until you uncheck Lab"
+          >
+            Lab · wallet off
           </span>
         )}
       </div>
@@ -2947,8 +2961,8 @@ export function App() {
                 </div>
                 <p className="meta a1-price-hint">{a1PriceHint}</p>
                 <p className="meta">
-                  Preview = faces only. Publish = local test front page (no
-                  wallet). Chain publish only if a wallet is connected.
+                  Preview = faces only. Desk = local publish. Press = on-chain
+                  when connected.
                 </p>
                 {wrongChain && isConnected && (
                   <p className="status bad">

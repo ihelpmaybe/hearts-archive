@@ -5,6 +5,10 @@ dist
 .env
 .env.*
 !.env.example
+!.env.desk
+!.env.press
+!.env.development
+!.env.production
 coverage
 sim/out
 public/lab-seed.json

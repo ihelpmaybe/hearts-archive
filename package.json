@@ -8,7 +8,11 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:desk": "vite",
+    "dev:press": "vite --mode press",
     "build": "tsc --noEmit && vite build",
+    "build:press": "tsc --noEmit && vite build",
+    "build:desk": "tsc --noEmit && vite build --mode desk",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

@@ -51,11 +51,12 @@ export function frontBidPrintedDay(b: FrontBidEntry): string {
   if (!b.timeStamp || b.timeStamp <= 0) return "";
   const d = new Date(b.timeStamp * 1000);
   if (Number.isNaN(d.getTime())) return "";
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
   // Legacy: bid on calendar day D → paper D+1
-  const t = Date.UTC(y, d.getUTCMonth(), d.getUTCDate() + 1);
+  const t = Date.UTC(
+    d.getUTCFullYear(),
+    d.getUTCMonth(),
+    d.getUTCDate() + 1,
+  );
   const n = new Date(t);
   return `${n.getUTCFullYear()}-${String(n.getUTCMonth() + 1).padStart(2, "0")}-${String(n.getUTCDate()).padStart(2, "0")}`;
 }

@@ -584,8 +584,9 @@ a.link-btn {
 
 .a1-cut-pic {
   margin: 0 auto;
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .type-cut-tool {
@@ -671,8 +672,9 @@ a.link-btn {
   width: 100%;
   max-width: 100%;
   overflow: hidden;
-  margin: 0.35rem auto;
-  background: color-mix(in srgb, var(--text) 3%, var(--bg));
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
   text-align: center;
 }
 
@@ -682,7 +684,7 @@ a.link-btn {
 .type-cut-pre {
   display: inline-block !important;
   margin: 0 auto !important;
-  padding: 0.35rem 0 !important;
+  padding: 0 !important;
   max-height: none !important;
   overflow: hidden !important;
   white-space: pre !important;
@@ -714,8 +716,15 @@ a.link-btn {
 
 .article-picture {
   margin: 0;
-  border-bottom: 1px solid var(--line-soft);
-  padding-bottom: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.article-stack .article-picture + .article-body,
+.article-stack .article-picture + pre.article-body {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 0.75rem;
 }
 
 .article-body {

@@ -21,13 +21,16 @@ export function TypeCutPicture({
     const cols = typeCutColumns(normalized);
     const fit = () => {
       const w = frame.clientWidth;
-      if (w < 32) return;
-      // Fit cut to column, leave a little side margin so it reads centered
-      const px = Math.max(3.5, (w * 0.92) / cols);
-      pre.style.fontSize = `${px}px`;
+      if (w < 32 || cols < 1) return;
+      // Courier (etc.) is ~0.6em wide — don't assume 1ch === 1em or the cut
+      // sits in a puddle of empty padding. Measure real advance, then fill width.
       pre.style.lineHeight = "1";
       pre.style.letterSpacing = "0px";
       pre.style.fontKerning = "none";
+      pre.style.fontSize = "100px";
+      const at100 = pre.scrollWidth || 1;
+      const px = Math.max(3.5, (w * 0.995 * 100) / at100);
+      pre.style.fontSize = `${px}px`;
     };
     fit();
     const ro = new ResizeObserver(fit);
