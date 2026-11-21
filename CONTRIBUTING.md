@@ -1,6 +1,7 @@
 # Contributing
 
-Heart’s Archive is experimental. Small, careful patches beat drive-by rewrites.
+Heart’s Archive is **not open source** (all rights reserved — see [`LICENSE`](./LICENSE)).  
+Experimental. Small, careful patches by invitation beat drive-by rewrites.
 
 ## Before you open a PR
 

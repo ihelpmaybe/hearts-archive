@@ -2,7 +2,6 @@
 
 [![Check](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml)
 [![Pages](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 **On-chain newspaper for [PulseChain](https://pulsechain.com).**  
 Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the lead. Reads like a broadsheet — not a card feed.
@@ -127,8 +126,8 @@ SECURITY.md     Money + trust model
 
 ---
 
-## License / status
+## Status / rights
 
-[MIT](./LICENSE). Experimental — mainnet ink is forever. Collaborate carefully.
+**Not open source.** Source may be visible for trust and local runs — see [`LICENSE`](./LICENSE) (all rights reserved). Experimental; mainnet ink is forever.
 
-Security reports: private advisory (see [`SECURITY.md`](./SECURITY.md)). Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Security reports: private advisory (see [`SECURITY.md`](./SECURITY.md)). Patches: [`CONTRIBUTING.md`](./CONTRIBUTING.md).
