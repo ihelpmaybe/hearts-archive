@@ -29,7 +29,8 @@ Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the le
 
 First Windows double-click installs deps once; later clicks open Press at `http://127.0.0.1:5177/`. Leave that window open — that’s the app.
 
-Money paths, burns, and tip safety: **[`SECURITY.md`](./SECURITY.md)**.
+Money paths, burns, and tip safety: **[`SECURITY.md`](./SECURITY.md)**.  
+Patches: **[`CONTRIBUTING.md`](./CONTRIBUTING.md)**.
 
 ```bash
 git clone https://github.com/ihelpmaybe/hearts-archive.git
@@ -129,3 +130,5 @@ SECURITY.md     Money + trust model
 ## License / status
 
 [MIT](./LICENSE). Experimental — mainnet ink is forever. Collaborate carefully.
+
+Security reports: private advisory (see [`SECURITY.md`](./SECURITY.md)). Contributing: [`CONTRIBUTING.md`](./CONTRIBUTING.md).

@@ -2,7 +2,24 @@
   "name": "hearts-archive",
   "private": true,
   "version": "0.6.0",
+  "description": "Heart’s Archive — on-chain newspaper for PulseChain (text stories + PLS A1 bids at 0x…feed)",
+  "license": "MIT",
   "type": "module",
+  "homepage": "https://github.com/ihelpmaybe/hearts-archive#readme",
+  "bugs": {
+    "url": "https://github.com/ihelpmaybe/hearts-archive/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ihelpmaybe/hearts-archive.git"
+  },
+  "keywords": [
+    "pulsechain",
+    "newspaper",
+    "web3",
+    "dapp",
+    "archive"
+  ],
   "engines": {
     "node": ">=20"
   },

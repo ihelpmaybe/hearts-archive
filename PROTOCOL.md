@@ -13,7 +13,7 @@ Override: `VITE_ARCHIVE_FACE=desk|press`. Do **not** split into a second GitHub.
 
 ## Use it (Press)
 
-1. **Connect** wallet on Pulse (top bar). Need a little PLS for gas.
+1. **Connect** wallet on Pulse (Press chrome / theme row). Need a little PLS for gas.
 2. **Post** → write text → **Publish**. When it lands you see **You’re live** → Open in reader.
 3. **Front page** paints from local cache. Hit **Sync** when you want new posts from `…feed`.
 4. **Like** = burn **≥1 PLS** to `…feed` with like JSON. Extra PLS still = **one** like per wallet. **Tip** = send the writer anything on Pulse — not a like.

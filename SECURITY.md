@@ -2,6 +2,14 @@
 
 Heart’s Archive is an experimental PulseChain broadsheet. Read this before connecting a wallet.
 
+## Report a vulnerability
+
+If you find a wallet, tip-address, or drain-risk bug:
+
+1. Prefer a **[private GitHub security advisory](https://github.com/ihelpmaybe/hearts-archive/security/advisories/new)** — do not open a public issue with exploit steps.
+2. Include: what you did, what you expected, chain (Pulse / anvil), and whether funds moved.
+3. We treat money-path reports ahead of cosmetics.
+
 ## How to run it
 
 **Recommended:** run a **local copy** like an app — ZIP + `start-press.cmd` (Windows) or `start-press.sh` (Mac/Linux). That build only changes when **you** download or pull again.

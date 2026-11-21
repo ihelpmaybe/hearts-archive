@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security / money-path concern
+    url: https://github.com/ihelpmaybe/hearts-archive/security/advisories/new
+    about: Do not file public issues for wallet / drain / tip-address bugs — use a private advisory.
+  - name: Read SECURITY first
+    url: https://github.com/ihelpmaybe/hearts-archive/blob/main/SECURITY.md
+    about: What the app can spend, burn sink, tips, and local vs demo.
