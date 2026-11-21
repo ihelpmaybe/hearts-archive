@@ -57,9 +57,11 @@ import {
   formatFrontPriceHint,
   formatPls,
   frontBidStats,
+  groupInsideByLetter,
 } from "./frontPage";
 import {
   bidsForPrintedDay,
+  cardsForEdition,
   editionCursor,
   isOpenEdition,
   isOpenPrintedDay,
@@ -191,6 +193,11 @@ type LoadedDoc = {
 const PREVIEW_FROM = "0xpreview00000000000000000000000000000001";
 /** Dev / Lab publish — local shelf only, not Pulse. */
 const LAB_FROM = "0xlab000000000000000000000000000000000001";
+/** Desk duel bidders — local A1–A3 / B outbid sim only. */
+const DUEL_A = "0xduela0000000000000000000000000000000001";
+const DUEL_B = "0xduelb0000000000000000000000000000000001";
+const DUEL_C = "0xduelc0000000000000000000000000000000001";
+const DUEL_D = "0xdueld0000000000000000000000000000000001";
 
 function shortAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -1632,8 +1639,9 @@ export function App() {
   }
 
   async function buyFrontPage() {
-    if (!doc || !walletClient || !publicClient || !address) return;
-    if (wrongChain) {
+    if (!doc) return;
+    const localBid = walletUiOff || !walletClient || !publicClient || !address;
+    if (!localBid && wrongChain) {
       setFrontError("Wrong network — hit Switch to Pulse.");
       return;
     }
@@ -1652,7 +1660,7 @@ export function App() {
     if (valueWei < need) {
       setFrontError(
         frontWinner
-          ? `Need more than ${formatPls(frontWinner.valueWei)} PLS to take the front`
+          ? `Need more than ${formatPls(frontWinner.valueWei)} PLS to take A1 (else you stay A2/below)`
           : "Enter a PLS amount",
       );
       return;
@@ -1667,30 +1675,170 @@ export function App() {
           `A1 only schedules ${OPEN_HORIZON_DAYS} days ahead (Sync tip depth)`,
         );
       }
-      const txHash = await sendFrontBid({
-        walletClient,
-        publicClient,
-        account: address,
-        manifestHash: doc.manifestHash,
-        valueWei,
-        forDay,
-      });
+      let txHash: Hash;
+      let from: string;
+      if (localBid) {
+        const salt = new TextEncoder().encode(
+          `front:${doc.manifestHash}:${valueWei}:${Date.now()}`,
+        );
+        const digest = await sha256Hex(salt);
+        txHash = (`0x${digest}`) as Hash;
+        from = (address || LAB_FROM).toLowerCase();
+      } else {
+        txHash = await sendFrontBid({
+          walletClient: walletClient!,
+          publicClient: publicClient!,
+          account: address!,
+          manifestHash: doc.manifestHash,
+          valueWei,
+          forDay,
+        });
+        from = address!.toLowerCase();
+      }
       const row: FrontBidEntry = {
         hash: txHash,
-        from: address.toLowerCase(),
+        from,
         timeStamp: Math.floor(Date.now() / 1000),
         manifest: doc.manifestHash.toLowerCase() as Hash,
         valueWei,
         forDay,
       };
       setFronts((prev) => dedupeFrontBids([row, ...prev]));
-      setFrontOk(`A1 for ${forDay} — ${formatPls(valueWei)} PLS`);
+      setFrontOk(
+        localBid
+          ? `Desk bid · ${formatPls(valueWei)} PLS on ${forDay} (local)`
+          : `A1 for ${forDay} — ${formatPls(valueWei)} PLS`,
+      );
+      setEditionDay(forDay);
     } catch (e) {
       setFrontError(e instanceof Error ? e.message : String(e));
       setFrontOk(null);
     } finally {
       setFronting(false);
     }
+  }
+
+  /** Desk-only: seed rivals + race PLS through A1→A3→B1. */
+  async function runA1A2Duel() {
+    const forDay = isOpenPrintedDay(bidForDay)
+      ? bidForDay
+      : shiftUtcDay(utcTodayKey(), 1);
+    setBidForDay(forDay);
+    setEditionDay(forDay);
+    setFrontError(null);
+
+    const scoped = cardsForEdition(libraryCards, fronts, forDay);
+    let stories = scoped.map((c) => c.entry);
+
+    async function ensureRival(
+      from: string,
+      title: string,
+      summary: string,
+      body: string,
+    ) {
+      const now = Math.floor(Date.now() / 1000);
+      const bytes = new TextEncoder().encode(body);
+      const digest = await sha256Hex(bytes);
+      const manifestHash = (`0x${digest}`) as Hash;
+      if (stories.some((s) => s.hash.toLowerCase() === manifestHash)) {
+        return;
+      }
+      const shelfRow = {
+        hash: manifestHash,
+        from,
+        timeStamp: now,
+        title,
+        mimeType: "text/plain;charset=utf-8",
+        type: "text" as DocType,
+        tags: ["duel"],
+        summary,
+        sha256: `0x${digest}`,
+        encoding: "raw" as const,
+        chunkCount: 1,
+        kind: "pulse-archive" as const,
+        cw: false,
+      };
+      pinToShelf(shelfRow);
+      await upsertCatalog([shelfRow]);
+      await putCachedDoc({
+        hash: manifestHash,
+        mimeType: shelfRow.mimeType,
+        title: shelfRow.title,
+        tags: shelfRow.tags,
+        summary: shelfRow.summary,
+        type: "text",
+        sha256: shelfRow.sha256,
+        encoding: "raw",
+        cw: false,
+        from,
+        postedAt: now,
+        chunkCount: 1,
+        bytes: bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ) as ArrayBuffer,
+        savedAt: Date.now(),
+      });
+      stories = [...stories, shelfRow];
+    }
+
+    // Need four distinct stories to fill A1–A3 + B1
+    while (stories.length < 4) {
+      const n = stories.length;
+      const from = [DUEL_A, DUEL_B, DUEL_C, DUEL_D][n] || DUEL_D;
+      await ensureRival(
+        from,
+        `Duel ${String.fromCharCode(65 + n)} — sim slot`,
+        `Bidder ${n + 1} story`,
+        `Desk duel filler ${n + 1} for A1–A3/B ranking.`,
+      );
+    }
+    setEntries((prev) =>
+      dedupeBySha256(mergeShelfAndRemote(listShelf(), prev)),
+    );
+
+    if (stories.length < 4) {
+      setFrontError("Could not seed four duel stories.");
+      return;
+    }
+
+    const [s1, s2, s3, s4] = stories;
+    const t0 = Math.floor(Date.now() / 1000);
+    const mk = (
+      manifest: string,
+      from: string,
+      pls: bigint,
+      n: number,
+    ): FrontBidEntry => ({
+      hash: (`0x${"d".repeat(62)}${n.toString(16).padStart(2, "0")}`) as Hash,
+      from,
+      timeStamp: t0 + n,
+      manifest: manifest.toLowerCase() as Hash,
+      valueWei: pls * 10n ** 18n,
+      forDay,
+    });
+
+    // R1: four rungs — D=A1 … A=B1
+    setFronts((prev) =>
+      dedupeFrontBids([
+        mk(s1.hash, DUEL_A, 10n, 1),
+        mk(s2.hash, DUEL_B, 20n, 2),
+        mk(s3.hash, DUEL_C, 30n, 3),
+        mk(s4.hash, DUEL_D, 40n, 4),
+        ...prev.filter((b) => frontBidPrintedDay(b) !== forDay),
+      ]),
+    );
+    setFrontOk("Duel R1 · D@40=A1 · C@30=A2 · B@20=A3 · A@10=B1");
+
+    await new Promise((r) => window.setTimeout(r, 800));
+
+    // R2: A jumps to 100 → A1; D/C/B shift down
+    setFronts((prev) =>
+      dedupeFrontBids([mk(s1.hash, DUEL_A, 100n, 5), ...prev]),
+    );
+    setFrontOk("Duel R2 · A@100=A1 · D@40=A2 · C@30=A3 · B@20=B1");
+    setTab("library");
+    closeReader();
   }
 
   async function likeDoc() {
@@ -1777,6 +1925,12 @@ export function App() {
   }, [backupMsg]);
 
   useEffect(() => {
+    if (!frontOk) return;
+    const t = window.setTimeout(() => setFrontOk(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [frontOk]);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       if (
@@ -1831,23 +1985,9 @@ export function App() {
     return `${months[(m || 1) - 1]} ${d}, ${y}`;
   }, [editionDay]);
 
-  const colLead = press.secondary[0] || null;
-  const colMid = press.secondary[1] || press.briefs[0] || null;
-  const colRight = press.briefs[press.secondary.length >= 2 ? 0 : 1] || null;
-  const colARest = (
-    press.secondary[0]
-      ? press.briefs.slice(0, 2)
-      : press.briefs.slice(0, 3)
-  ).filter((c) => c.entry.hash !== colMid?.entry.hash && c.entry.hash !== colRight?.entry.hash);
-  const colCRest = press.briefs
-    .slice(press.secondary.length >= 2 ? 1 : 2)
-    .filter(
-      (c) =>
-        c.entry.hash !== colMid?.entry.hash &&
-        c.entry.hash !== colRight?.entry.hash &&
-        !colARest.some((a) => a.entry.hash === c.entry.hash),
-    )
-    .slice(0, 2);
+  const a2Slot = press.aFace?.[1] || null;
+  const a3Slot = press.aFace?.[2] || null;
+  const insideBands = groupInsideByLetter(press.inside || []);
 
   return (
     <div className="app">
@@ -2063,6 +2203,16 @@ export function App() {
               >
                 Export
               </button>
+              {deskFace && (
+                <button
+                  type="button"
+                  className="ghost"
+                  title="Local sim: two stories outbid — A1 flips, loser becomes A2"
+                  onClick={() => void runA1A2Duel()}
+                >
+                  Sim A1/A2 duel
+                </button>
+              )}
               <label className="ghost file-btn" title="Import backup JSON">
                 Import
                 <input
@@ -2138,6 +2288,8 @@ export function App() {
             </div>
           </details>
           {backupMsg && <p className="meta">{backupMsg}</p>}
+          {frontOk && <p className="status ok">{frontOk}</p>}
+          {frontError && <p className="status bad">{frontError}</p>}
           {browseError && <p className="status bad">{browseError}</p>}
           {labNote && labOn && (
             <p className="meta lab-banner">{labNote}</p>
@@ -2220,141 +2372,143 @@ export function App() {
                     </div>
                   ) : null}
                   <hr className="single-rule" />
-                  <div className="a1-grid">
-                    <div className="a1-col">
-                      {colLead ? (
-                        <SoftHeld
-                          hit={softMuteHit(
-                            colLead.entry.title,
-                            colLead.entry.summary,
-                          )}
-                        >
-                          <button
-                            type="button"
-                            className="story-item lead-col"
-                            onClick={() => void load(colLead.entry.hash)}
-                          >
-                            <span className="a1-col-hed">
-                              {colLead.entry.title}
-                            </span>
-                            {colLead.entry.summary && (
-                              <span className="story-dek">
-                                {colLead.entry.summary}
-                              </span>
-                            )}
-                            <span className="story-meta">
-                              {shortAddr(colLead.entry.from)} ·{" "}
-                              {likeCounts.get(
-                                colLead.entry.hash.toLowerCase(),
-                              ) || 0}{" "}
-                              likes
-                            </span>
-                          </button>
-                        </SoftHeld>
-                      ) : (
-                        <p className="a1-col-hed">Inside</p>
-                      )}
-                      <div className="story-stack">
-                        {colARest.map(({ entry: e }) => (
+                  {(a2Slot || a3Slot) && (
+                    <div className="a1-grid a1-grid--secondary">
+                      {a2Slot && (
+                        <div className="a1-col">
                           <SoftHeld
-                            key={e.hash}
-                            hit={softMuteHit(e.title, e.summary)}
+                            hit={softMuteHit(
+                              a2Slot.card.entry.title,
+                              a2Slot.card.entry.summary,
+                            )}
                           >
                             <button
                               type="button"
-                              className="story-item"
-                              onClick={() => void load(e.hash)}
+                              className="story-item lead-col"
+                              onClick={() => void load(a2Slot.card.entry.hash)}
                             >
-                              <span className="story-hed">{e.title}</span>
-                              {e.summary && (
-                                <span className="story-dek">{e.summary}</span>
+                              <span className="slot-kicker">
+                                A2
+                                {a2Slot.bid
+                                  ? ` · ${formatPls(a2Slot.bid.valueWei)} PLS`
+                                  : ""}
+                              </span>
+                              <span className="a1-col-hed">
+                                {a2Slot.card.entry.title}
+                              </span>
+                              {a2Slot.card.entry.summary && (
+                                <span className="story-dek">
+                                  {a2Slot.card.entry.summary}
+                                </span>
                               )}
                               <span className="story-meta">
-                                {shortAddr(e.from)}
+                                {shortAddr(a2Slot.card.entry.from)} ·{" "}
+                                {likeCounts.get(
+                                  a2Slot.card.entry.hash.toLowerCase(),
+                                ) || 0}{" "}
+                                likes
+                              </span>
+                            </button>
+                          </SoftHeld>
+                        </div>
+                      )}
+                      {a3Slot && (
+                        <div className="a1-col a1-col-mid">
+                          <SoftHeld
+                            hit={softMuteHit(
+                              a3Slot.card.entry.title,
+                              a3Slot.card.entry.summary,
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className="story-item mid-wrap"
+                              onClick={() => void load(a3Slot.card.entry.hash)}
+                            >
+                              <span className="slot-kicker">
+                                A3
+                                {a3Slot.bid
+                                  ? ` · ${formatPls(a3Slot.bid.valueWei)} PLS`
+                                  : ""}
+                              </span>
+                              {a3Slot.card.entry.summary && (
+                                <span className="story-dek mid-dek-top">
+                                  {a3Slot.card.entry.summary.slice(0, 120)}
+                                  {a3Slot.card.entry.summary.length > 120
+                                    ? "…"
+                                    : ""}
+                                </span>
+                              )}
+                              <span className="story-hed mid-hed">
+                                {a3Slot.card.entry.title}
+                              </span>
+                              <span className="story-meta">
+                                {shortAddr(a3Slot.card.entry.from)}
+                              </span>
+                            </button>
+                          </SoftHeld>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {insideBands.map(({ letter, slots }) => (
+                    <section
+                      key={letter}
+                      className="section-band"
+                      aria-label={`Section ${letter}`}
+                    >
+                      <p className="section-band-hed">
+                        Section {letter}
+                        <span className="section-band-note">
+                          {letter === "B"
+                            ? " · after A1–A3"
+                            : ` · continues after ${String.fromCharCode(letter.charCodeAt(0) - 1)}`}
+                        </span>
+                      </p>
+                      <div className="section-band-grid">
+                        {slots.map((s) => (
+                          <SoftHeld
+                            key={s.card.entry.hash}
+                            hit={softMuteHit(
+                              s.card.entry.title,
+                              s.card.entry.summary,
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className="story-item section-card"
+                              onClick={() => void load(s.card.entry.hash)}
+                            >
+                              <span className="slot-kicker">
+                                {s.label}
+                                {s.bid
+                                  ? ` · ${formatPls(s.bid.valueWei)} PLS`
+                                  : ""}
+                              </span>
+                              <span className="story-hed">
+                                {s.card.entry.title}
+                              </span>
+                              {s.card.entry.summary && (
+                                <span className="story-dek">
+                                  {s.card.entry.summary.slice(0, 100)}
+                                  {s.card.entry.summary.length > 100 ? "…" : ""}
+                                </span>
+                              )}
+                              <span className="story-meta">
+                                {shortAddr(s.card.entry.from)}
                               </span>
                             </button>
                           </SoftHeld>
                         ))}
                       </div>
-                    </div>
-                    <div className="a1-col a1-col-mid">
-                      {colMid ? (
-                        <SoftHeld
-                          hit={softMuteHit(
-                            colMid.entry.title,
-                            colMid.entry.summary,
-                          )}
-                        >
-                          <button
-                            type="button"
-                            className="story-item mid-wrap"
-                            onClick={() => void load(colMid.entry.hash)}
-                          >
-                            {colMid.entry.summary && (
-                              <span className="story-dek mid-dek-top">
-                                {colMid.entry.summary.slice(0, 120)}
-                                {colMid.entry.summary.length > 120 ? "…" : ""}
-                              </span>
-                            )}
-                            <span className="story-hed mid-hed">
-                              {colMid.entry.title}
-                            </span>
-                            <span className="story-meta">
-                              {shortAddr(colMid.entry.from)}
-                            </span>
-                          </button>
-                        </SoftHeld>
-                      ) : (
-                        <p className="story-meta">More stories after Sync.</p>
-                      )}
-                    </div>
-                    <div className="a1-col">
-                      {colRight ? (
-                        <SoftHeld
-                          hit={softMuteHit(
-                            colRight.entry.title,
-                            colRight.entry.summary,
-                          )}
-                        >
-                          <button
-                            type="button"
-                            className="story-item"
-                            onClick={() => void load(colRight.entry.hash)}
-                          >
-                            <span className="story-hed right-hed">
-                              {colRight.entry.title}
-                            </span>
-                            {colRight.entry.summary && (
-                              <span className="story-dek">
-                                {colRight.entry.summary}
-                              </span>
-                            )}
-                            <span className="story-meta">
-                              {shortAddr(colRight.entry.from)}
-                            </span>
-                          </button>
-                        </SoftHeld>
-                      ) : null}
-                      <div className="story-stack">
-                        {colCRest.map(({ entry: e }) => (
-                          <button
-                            key={e.hash}
-                            type="button"
-                            className="story-item"
-                            onClick={() => void load(e.hash)}
-                          >
-                            <span className="story-hed">{e.title}</span>
-                            <span className="story-meta">
-                              {shortAddr(e.from)}
-                            </span>
-                          </button>
-                        ))}
-                        {!colMid && !colRight && !colLead && (
-                          <p className="story-meta">More stories after Sync.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                    </section>
+                  ))}
+                  {!press.lead &&
+                    !a2Slot &&
+                    !a3Slot &&
+                    insideBands.length === 0 && (
+                      <p className="story-meta">More stories after Sync.</p>
+                    )}
                 </div>
               )}
             </>
@@ -2506,7 +2660,7 @@ export function App() {
                   {likeOk && <p className="status ok">{likeOk}</p>}
                   {tipError && <p className="status bad">{tipError}</p>}
                   {tipOk && <p className="status ok">{tipOk}</p>}
-                  {isConnected && (
+                  {(isConnected || walletUiOff) && (
                     <div className="front-bid-bar">
                       <span className="front-bid-label">
                         {frontWinner &&
@@ -2514,7 +2668,7 @@ export function App() {
                           doc.manifestHash.toLowerCase()
                           ? `Leading ${bidForDay} A1 · ${formatPls(frontWinner.valueWei)} PLS — rebid if outbid`
                           : frontWinner
-                            ? `${bidForDay} A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more to take it`
+                            ? `${bidForDay} A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more for A1 (loser stays A2)`
                             : `${bidForDay} A1 open — set the lead with PLS`}
                       </span>
                       <input
@@ -2542,13 +2696,16 @@ export function App() {
                         className="primary"
                         disabled={
                           fronting ||
-                          wrongChain ||
-                          !walletClient ||
-                          !publicClient
+                          (!walletUiOff &&
+                            (wrongChain || !walletClient || !publicClient))
                         }
                         onClick={() => void buyFrontPage()}
                       >
-                        {fronting ? "…" : "Buy A1"}
+                        {fronting
+                          ? "…"
+                          : walletUiOff
+                            ? "Bid A1 (desk)"
+                            : "Buy A1"}
                       </button>
                     </div>
                   )}

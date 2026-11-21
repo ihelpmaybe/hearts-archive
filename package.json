@@ -13,6 +13,7 @@
     "build": "tsc --noEmit && vite build",
     "build:press": "tsc --noEmit && vite build",
     "build:desk": "tsc --noEmit && vite build --mode desk",
+    "build:pages": "tsc --noEmit && vite build --base /hearts-archive/",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

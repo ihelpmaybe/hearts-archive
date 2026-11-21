@@ -1,7 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 
+// GitHub Pages project site: https://<user>.github.io/hearts-archive/
+const pagesBase = process.env.VITE_BASE || "/";
+
 export default defineConfig({
+  base: pagesBase,
   plugins: [react()],
   build: {
     chunkSizeWarningLimit: 900,

@@ -775,6 +775,56 @@ a.link-btn {
   margin-top: 0.1rem;
 }
 
+.a1-grid--secondary {
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+}
+
+.slot-kicker {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.25rem;
+}
+
+.section-band {
+  margin-top: 0.85rem;
+  padding-top: 0.55rem;
+  border-top: 2px solid var(--line);
+}
+
+.section-band-hed {
+  margin: 0 0 0.55rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.section-band-note {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-transform: none;
+  font-size: 0.72rem;
+}
+
+.section-band-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.35rem 0.85rem;
+}
+
+.section-card {
+  border: 1px solid var(--line-soft);
+  padding: 0.45rem 0.55rem 0.55rem !important;
+  min-height: 0;
+}
+
 .a1-col {
   border-left: 1px solid var(--line);
   padding-left: 0.9rem;

@@ -17,7 +17,7 @@ Override: `VITE_ARCHIVE_FACE=desk|press`. Do **not** split into a second GitHub.
 2. **Post** → write text → **Publish**. When it lands you see **You’re live** → Open in reader.
 3. **Front page** paints from local cache. Hit **Sync** when you want new posts from `…feed`.
 4. **Like** = burn **≥1 PLS** to `…feed` with like JSON. Extra PLS still = **one** like per wallet. **Tip** = send the writer anything on Pulse — not a like.
-5. **Publish + A1 + gas = PLS only.** Front-bid is native PLS to `…feed` with optional `forDay` (printed YYYY-MM-DD). You may bid higher anytime before that day’s UTC midnight — each bid is a new PLS tx; highest wins. Not a top-up of the old tx.
+5. **Publish + A1 + gas = PLS only.** Front-bid is native PLS to `…feed` with optional `forDay` (printed YYYY-MM-DD). You may bid higher anytime before that day’s UTC midnight — each bid is a new PLS tx; highest wins. Not a top-up of the old tx. **Face:** top 3 bids = **A1–A3**; ranks 4–15 = **B1–B12**; then **C1…**, **D1…** (12 per letter). Unbid stories never take A on an Open paper.
 6. **Edition** = **≤ today · Final** (locked) and **Open** = tomorrow through **+30 UTC days**. Sync lookback = **60d** (2× schedule): post today for +30d, return on day 59, still catch it. Publish tx is at today’s height, not the paper day. Legacy bids without `forDay` = bid calendar day + 1.
 
 Lab fake posts stay off unless `?lab=1`, Lab seed checkbox, or `VITE_LAB_SEED=1`.

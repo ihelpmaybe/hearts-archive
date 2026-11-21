@@ -3,7 +3,53 @@
 **On-chain newspaper for PulseChain.**  
 Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The desk reads like a broadsheet — not a feed of cards.
 
-> Experimental, text-only, Raven-compatible. Private desk energy — not a hosted product.
+> Experimental, text-only, Raven-compatible.
+
+**Live (Press face):** [https://ihelpmaybe.github.io/hearts-archive/](https://ihelpmaybe.github.io/hearts-archive/)
+
+---
+
+## Run it locally (download)
+
+**Need:** [Node.js 20+](https://nodejs.org/) (LTS).
+
+### Option A — ZIP
+1. Open [github.com/ihelpmaybe/hearts-archive](https://github.com/ihelpmaybe/hearts-archive)
+2. **Code → Download ZIP** → unzip
+3. In that folder:
+
+```bash
+npm install
+npm run dev:press
+```
+
+Open the URL Vite prints (usually `http://127.0.0.1:5177/`). Connect a Pulse wallet to publish / like / bid A1.
+
+### Option B — Git clone
+
+```bash
+git clone https://github.com/ihelpmaybe/hearts-archive.git
+cd hearts-archive
+npm install
+npm run dev:press   # people / wallets on
+# or: npm run dev   # Desk — local publish, no wallet gate
+```
+
+Desk vs Press = same repo, two faces — not two GitHubs.
+
+| Face | Command | Wallet | Publish |
+|---|---|---|---|
+| **Desk** (develop) | `npm run dev` | off | local shelf + test A1 |
+| **Press** (people) | `npm run build` / `dev:press` | on | on-chain to `…feed` |
+
+```bash
+npm run check      # typecheck · lint · unit · smoke · lab
+npm run build      # static Press bundle (dist/)
+```
+
+Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
+
+Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 
 ---
 
@@ -18,34 +64,11 @@ Text stories live at `0x…feed`. The highest PLS front-bid owns **A1**. The des
 
 ---
 
-## Quick start
-
-```bash
-npm install
-npm run check      # typecheck · lint · unit · smoke · lab
-npm run dev        # Desk face — local publish, no wallet gate (:5177)
-npm run dev:press  # Press face — Connect / chain Publish / Like / Tip / A1
-npm run build      # Press production bundle
-```
-
-**One GitHub, two faces** — not two repos.
-
-| Face | Command | Wallet | Publish |
-|---|---|---|---|
-| **Desk** (develop) | `npm run dev` | off | local shelf + test A1 |
-| **Press** (people) | `npm run build` / `dev:press` | on | on-chain to `…feed` |
-
-Lab fake posts stay **off** unless `?lab=1`, the Lab seed checkbox, or `VITE_LAB_SEED=1`.
-
-Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
-
----
-
 ## What you can do
 
 1. **Write** → publish UTF-8 text (gzip when it helps; hard cap 150 KB)
 2. **Sync** → pull `…feed` into a local-first library (IndexedDB)
-3. **Buy A1** → PLS value on a front-bid tx; highest wins the lead
+3. **Buy A1–A3** → PLS front-bids; top 3 own the A face; next ranks fill **B1+** then **C/D**
 4. **Like / tip** → on-chain sign-off; tip pHEX / INC / etc. to the author
 5. **Edition** → Today · Final (closed) · → Tomorrow · Open (unpublished A1 race)
 6. **Themes** → Press (default broadsheet), plus Sailor / Venus / Operator / Pulse packs
@@ -60,6 +83,7 @@ Operator wire: [`PROTOCOL.md`](./PROTOCOL.md)
 | `npm run dev` / `dev:desk` | Desk face on `:5177` |
 | `npm run dev:press` | Press face locally (wallets on) |
 | `npm run build` / `build:press` | Press production bundle |
+| `npm run build:pages` | Press bundle with `/hearts-archive/` base (GitHub Pages) |
 | `npm run build:desk` | Desk static build (optional) |
 | `npm run sim:lab` | Local anvil publish / read / like (no Pulse trail) |
 | `npm run sim:dry` | Post → Sync → Like → Tip on anvil |
