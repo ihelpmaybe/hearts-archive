@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
   useBalance,
@@ -58,6 +58,7 @@ export function WalletBar({ onUseAsAuthor }: Props) {
     },
   });
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [rpcOpen, setRpcOpen] = useState(false);
   const [rpcDraft, setRpcDraft] = useState("");
@@ -71,6 +72,30 @@ export function WalletBar({ onUseAsAuthor }: Props) {
     const t = window.setTimeout(() => setCopied(false), 1600);
     return () => window.clearTimeout(t);
   }, [copied]);
+
+  useEffect(() => {
+    if (!menuOpen && !rpcOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setRpcOpen(false);
+      }
+    }
+    function onPointer(e: PointerEvent) {
+      const el = rootRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setMenuOpen(false);
+        setRpcOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer);
+    };
+  }, [menuOpen, rpcOpen]);
 
   const pls =
     balance != null
@@ -113,7 +138,7 @@ export function WalletBar({ onUseAsAuthor }: Props) {
   }, [connectors]);
 
   return (
-    <div className="wallet-bar">
+    <div className="wallet-bar" ref={rootRef}>
       <div className="wallet-bar-main">
         {isConnected && address ? (
           <div className="wallet-chip-wrap">
@@ -128,6 +153,7 @@ export function WalletBar({ onUseAsAuthor }: Props) {
               }
               aria-expanded={menuOpen}
               aria-haspopup="menu"
+              aria-label={`Wallet ${shortAddr(address)}${wrongChain ? ", wrong network" : ""}${lowPls ? ", low PLS" : ""}`}
               title={address}
               onClick={() => {
                 setRpcOpen(false);
@@ -208,6 +234,9 @@ export function WalletBar({ onUseAsAuthor }: Props) {
               type="button"
               className="primary"
               disabled={isPending || status === "connecting"}
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Connect Pulse wallet"
               onClick={() => {
                 setRpcOpen(false);
                 setMenuOpen((o) => !o);
@@ -278,6 +307,7 @@ export function WalletBar({ onUseAsAuthor }: Props) {
               value={rpcDraft}
               onChange={(e) => setRpcDraft(e.target.value)}
               spellCheck={false}
+              aria-label="Custom Pulse RPC URL"
             />
             <button type="button" className="primary" onClick={saveRpc}>
               Save

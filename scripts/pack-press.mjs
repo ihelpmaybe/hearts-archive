@@ -53,6 +53,7 @@ cpSync(join(root, "START.cmd"), join(outDir, "START.cmd"));
 cpSync(join(root, "START.sh"), join(outDir, "START.sh"));
 cpSync(join(root, "RUN.txt"), join(outDir, "RUN.txt"));
 cpSync(join(root, "SECURITY.md"), join(outDir, "SECURITY.md"));
+cpSync(join(root, "LICENSE"), join(outDir, "LICENSE"));
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 writeFileSync(

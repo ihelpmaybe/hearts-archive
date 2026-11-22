@@ -14,8 +14,12 @@ fi
 
 PORT="${PORT:-5177}"
 URL="http://127.0.0.1:${PORT}/"
+VER="Heart's Archive Press"
+if [[ -f VERSION.txt ]]; then
+  VER="$(head -n 1 VERSION.txt | tr -d '\r')"
+fi
 echo ""
-echo "Heart's Archive Press"
+echo "${VER}"
 echo "  ${URL}"
 echo "  Leave this terminal open. Ctrl+C to stop."
 echo ""

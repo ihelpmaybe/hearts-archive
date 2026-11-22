@@ -1,7 +1,7 @@
 {
   "name": "hearts-archive",
   "private": true,
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Heart’s Archive — on-chain newspaper for PulseChain (text stories + PLS A1 bids at 0x…feed)",
   "license": "UNLICENSED",
   "type": "module",

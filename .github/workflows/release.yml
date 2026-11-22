@@ -41,7 +41,7 @@ jobs:
             1. Download **hearts-archive-press.zip**
             2. Unzip
             3. Double-click **START.cmd** (Windows) or run **./START.sh** (Mac/Linux)
-            4. Connect Pulse wallet → Write → Publish
+            4. Connect Pulse wallet → Write → Publish → Buy A1 if you want the lead
 
-            This ZIP is a frozen build. It only changes when you download a newer release.
-            Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/
+            Frozen build — only changes when **you** download a newer release.
+            Money paths: `SECURITY.md` inside the ZIP · Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/

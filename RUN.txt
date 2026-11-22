@@ -11,3 +11,6 @@ Close it to stop.
 
 No Node install. This copy only changes when YOU download a newer release.
 Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/
+
+Money paths: SECURITY.md
+Rights: LICENSE (proprietary — not open source)

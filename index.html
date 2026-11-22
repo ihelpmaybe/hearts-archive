@@ -6,15 +6,31 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#100805" />
     <meta
       name="description"
       content="Heart’s Archive — on-chain newspaper for PulseChain. Prefer local Press for wallets; this demo preview reloads from the host each visit."
     />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Heart’s Archive" />
+    <meta property="og:title" content="Heart’s Archive" />
+    <meta
+      property="og:description"
+      content="On-chain newspaper for PulseChain. Text stories and PLS A1 bids at 0x…feed."
+    />
+    <meta property="og:url" content="https://ihelpmaybe.github.io/hearts-archive/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Heart’s Archive" />
+    <meta
+      name="twitter:description"
+      content="On-chain newspaper for PulseChain. Text stories and PLS A1 bids at 0x…feed."
+    />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Heart’s Archive" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
@@ -27,6 +43,12 @@
     />
   </head>
   <body>
+    <noscript>
+      Heart’s Archive needs JavaScript. Download the Press ZIP from
+      <a href="https://github.com/ihelpmaybe/hearts-archive/releases/latest"
+        >GitHub Releases</a
+      >, then run START.cmd / START.sh.
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

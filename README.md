@@ -2,6 +2,8 @@
 
 [![Check](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml)
 [![Pages](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml)
+[![Latest release](https://img.shields.io/github/v/release/ihelpmaybe/hearts-archive?label=Press)](https://github.com/ihelpmaybe/hearts-archive/releases/latest)
+[![License](https://img.shields.io/badge/license-Proprietary-red)](./LICENSE)
 
 **On-chain newspaper for [PulseChain](https://pulsechain.com).**  
 Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the lead.

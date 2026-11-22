@@ -117,6 +117,7 @@ import {
   type SearchSort,
 } from "./search";
 import {
+  APP_VERSION,
   estimatePublishCostLocal,
   formatCitation,
   makeObjectUrl,
@@ -248,6 +249,9 @@ export function App() {
   const [tipError, setTipError] = useState<string | null>(null);
   const [tipOk, setTipOk] = useState<string | null>(null);
   const [citeMsg, setCiteMsg] = useState<string | null>(null);
+  const [offline, setOffline] = useState(
+    () => typeof navigator !== "undefined" && navigator.onLine === false,
+  );
   const [, setLoadSource] = useState<string | null>(null);
   const [likes, setLikes] = useState<LikeEntry[]>([]);
   const [fronts, setFronts] = useState<FrontBidEntry[]>(() =>
@@ -1904,6 +1908,21 @@ export function App() {
   }, [frontOk]);
 
   useEffect(() => {
+    function goOff() {
+      setOffline(true);
+    }
+    function goOn() {
+      setOffline(false);
+    }
+    window.addEventListener("offline", goOff);
+    window.addEventListener("online", goOn);
+    return () => {
+      window.removeEventListener("offline", goOff);
+      window.removeEventListener("online", goOn);
+    };
+  }, []);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       if (
@@ -2029,8 +2048,43 @@ export function App() {
     : sectionPages[0] || "A";
   const activeInside = insideBands.find((b) => b.letter === activePage);
 
+  useEffect(() => {
+    const dayLabel =
+      editionCursorKey === todayKey
+        ? "Today"
+        : editionCursorKey === yesterdayKey
+          ? "Yesterday"
+          : editionCursorKey === tomorrowKey
+            ? "Tomorrow"
+            : editionCursorKey;
+    if (tab === "post") {
+      document.title = `Write · Heart’s Archive`;
+      return;
+    }
+    if (doc?.title) {
+      document.title = `${doc.title} · Heart’s Archive`;
+      return;
+    }
+    document.title = `Heart’s Archive · ${dayLabel}`;
+  }, [
+    tab,
+    doc?.title,
+    editionCursorKey,
+    todayKey,
+    yesterdayKey,
+    tomorrowKey,
+  ]);
+
   return (
     <div className={`app${mobileToolsOpen ? " app--tools-open" : ""}`}>
+      <a className="skip-link" href="#main">
+        Skip to paper
+      </a>
+      {offline && (
+        <p className="offline-banner" role="status">
+          You’re offline — local shelf still works; Sync needs a network.
+        </p>
+      )}
       <div className="rail">
         {tab === "library" && (
           <details
@@ -2398,8 +2452,10 @@ export function App() {
     wrongChain,
         }}
       >
-        {tab === "library" && <LibraryPage />}
-        {tab === "post" && <PostPage />}
+        <main id="main">
+          {tab === "library" && <LibraryPage />}
+          {tab === "post" && <PostPage />}
+        </main>
       </ArchiveUiProvider>
 
       {citeMsg && (
@@ -2415,6 +2471,9 @@ export function App() {
             tab === "library" && !mobileToolsOpen
               ? "mobile-tab is-active"
               : "mobile-tab"
+          }
+          aria-current={
+            tab === "library" && !mobileToolsOpen ? "page" : undefined
           }
           onClick={() => {
             setMobileToolsOpen(false);
@@ -2433,6 +2492,7 @@ export function App() {
           className={
             mobileToolsOpen ? "mobile-tab is-active" : "mobile-tab"
           }
+          aria-pressed={mobileToolsOpen}
           onClick={() => {
             if (tab !== "library") {
               setWriteMode("compose");
@@ -2451,6 +2511,7 @@ export function App() {
           className={
             tab === "post" ? "mobile-tab is-active" : "mobile-tab"
           }
+          aria-current={tab === "post" ? "page" : undefined}
           onClick={() => {
             setMobileToolsOpen(false);
             setWriteMode("compose");
@@ -2469,8 +2530,10 @@ export function App() {
         </button>
         <button
           type="button"
-          className="mobile-tab"
+          className={browsing ? "mobile-tab is-busy" : "mobile-tab"}
           disabled={browsing}
+          aria-busy={browsing}
+          aria-label={browsing ? "Syncing" : "Sync from Pulse"}
           onClick={() => void refreshLibrary({ mode: "manual" })}
         >
           <span className="mobile-tab-ico" aria-hidden="true">
@@ -2481,6 +2544,9 @@ export function App() {
           </span>
         </button>
       </nav>
+      <span className="app-build" aria-hidden="true">
+        v{APP_VERSION}
+      </span>
     </div>
   );
 }

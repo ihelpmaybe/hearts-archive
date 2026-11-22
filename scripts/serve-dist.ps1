@@ -48,8 +48,11 @@ try {
   exit 1
 }
 
+$verPath = Join-Path $root "VERSION.txt"
+$verLine = if (Test-Path $verPath) { (Get-Content -LiteralPath $verPath -TotalCount 1).Trim() } else { "Heart's Archive Press" }
+
 Write-Host ""
-Write-Host "Heart's Archive Press"
+Write-Host $verLine
 Write-Host "  $prefix"
 Write-Host "  Serving: $DistDir"
 Write-Host "  Leave this window open. Close it to stop."
@@ -82,7 +85,15 @@ while ($listener.IsListening) {
     $res.ContentType = if ($mimes.ContainsKey($ext)) { $mimes[$ext] } else { "application/octet-stream" }
     $bytes = [System.IO.File]::ReadAllBytes($full)
     $res.ContentLength64 = $bytes.LongLength
-    $res.Headers.Add("Cache-Control", "no-cache")
+    $name = [System.IO.Path]::GetFileName($full)
+    if ($ext -eq ".html" -or $ext -eq ".webmanifest" -or $name -eq "VERSION.txt") {
+      $res.Headers["Cache-Control"] = "no-store"
+    } elseif ($rel -match "[\\/]assets[\\/].+\-[A-Za-z0-9_-]{6,}\.(js|css)$") {
+      $res.Headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    } else {
+      $res.Headers["Cache-Control"] = "no-cache"
+    }
+    $res.Headers["X-Content-Type-Options"] = "nosniff"
     $res.OutputStream.Write($bytes, 0, $bytes.Length)
     $res.Close()
   } catch {
