@@ -5,10 +5,27 @@
 [![Latest release](https://img.shields.io/github/v/release/ihelpmaybe/hearts-archive?label=Press)](https://github.com/ihelpmaybe/hearts-archive/releases/latest)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](./LICENSE)
 
+<p align="center">
+  <img src="public/brand/ha-logo.jpg" alt="Heart’s Archive — HA logo" width="220" />
+</p>
+
 **On-chain newspaper for [PulseChain](https://pulsechain.com).**  
 Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the lead.
 
 > Experimental · text-only · Raven-compatible (`app`: `pulse-archive`) · **not open source**
+
+### Share this
+
+**Peek (read + tip QR):** https://ihelpmaybe.github.io/hearts-archive/  
+**Press ZIP (wallets):** https://github.com/ihelpmaybe/hearts-archive/releases/latest  
+
+Copy/paste for X:
+
+```
+Heart’s Archive — on-chain newspaper for PulseChain.
+Read + tip QR: https://ihelpmaybe.github.io/hearts-archive/
+Publish (Press ZIP): https://github.com/ihelpmaybe/hearts-archive/releases/latest
+```
 
 ---
 
