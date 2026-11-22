@@ -29,4 +29,19 @@ describe("archiveFace", () => {
     const { archiveFace } = await import("./archiveFace");
     expect(archiveFace()).toBe("press");
   });
+
+  it("recognizes gallery + studio + wallet modes", async () => {
+    vi.stubEnv("VITE_ARCHIVE_FACE", "gallery");
+    const g = await import("./archiveFace");
+    expect(g.isGalleryFace()).toBe(true);
+    expect(g.isReadOnlyFace()).toBe(true);
+    expect(g.walletMode()).toBe("demo");
+
+    vi.resetModules();
+    vi.stubEnv("VITE_ARCHIVE_FACE", "studio");
+    const s = await import("./archiveFace");
+    expect(s.isStudioFace()).toBe(true);
+    expect(s.walletMode()).toBe("trezor");
+    expect(s.isReadOnlyFace()).toBe(false);
+  });
 });

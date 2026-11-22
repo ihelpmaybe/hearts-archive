@@ -36,9 +36,11 @@ function run(cmd, args, cwd = root) {
 
 console.log("Pack Press release bundle\n");
 
+console.log("· building Press (base /)…");
+run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build:press"]);
 if (!existsSync(join(dist, "index.html"))) {
-  console.log("· building Press (base /)…");
-  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"]);
+  console.error("dist/index.html missing after build:press");
+  process.exit(1);
 }
 
 rmSync(outDir, { recursive: true, force: true });

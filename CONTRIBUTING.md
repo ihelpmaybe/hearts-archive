@@ -16,10 +16,14 @@ That runs typecheck, lint, unit tests, smoke, and the anvil A1 dry-run.
 
 | Face | Command | Notes |
 |---|---|---|
-| **Press** | `npm run dev:press` or `start-press.*` | Real app path — wallets on |
+| **Press** | `npm run dev:press` / `pack:press` | Injected wallets |
+| **Gallery** | `npm run dev:gallery` / `build:pages` | Read-only + tip QR; Capacitor webDir |
+| **Studio** | `npm run dev:studio` / `pack:studio` | Trezor Connect + Bridge; desktop gate |
 | **Desk** | `npm run dev` | Local sandbox — **DEV ONLY**, no wallet gate |
 
-Do not split Desk/Press into a second GitHub. Same repo, two Vite modes (`VITE_ARCHIVE_FACE`).
+Capacitor: `build:android` / `build:ios` sync Gallery. iOS signed builds need Mac + Xcode.
+
+Do not split faces into a second GitHub. Same repo, Vite modes (`VITE_ARCHIVE_FACE`).
 
 ## Rules of the road
 

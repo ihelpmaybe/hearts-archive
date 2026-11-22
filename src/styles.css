@@ -80,6 +80,72 @@ body {
   font-size: 0.78rem;
 }
 
+.install-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.75rem;
+  margin: 0 0 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--line-soft);
+  background: var(--panel-2);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+}
+
+.install-banner-acts {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tip-qr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem 0.85rem;
+  align-items: start;
+  margin: 0.55rem 0 0.25rem;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.tip-qr-canvas {
+  display: block;
+  width: 128px;
+  height: 128px;
+  background: #fffaf3;
+}
+
+.tip-qr-meta {
+  min-width: 0;
+}
+
+.tip-qr-details {
+  margin-top: 0.35rem;
+}
+
+.studio-desktop-gate {
+  max-width: 28rem;
+  margin: 12vh auto;
+  padding: 1.25rem 1.1rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-family: var(--font-ui);
+}
+
+.studio-desktop-gate h1 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  margin: 0 0 0.65rem;
+}
+
+@media (max-width: 520px) {
+  .tip-qr {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+}
+
 .app-build {
   display: none;
 }

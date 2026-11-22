@@ -4,7 +4,16 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "node_modules/**", "sim/out/**"] },
+  {
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "sim/out/**",
+      "android/**",
+      "ios/**",
+      "out/**",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

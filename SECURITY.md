@@ -15,9 +15,11 @@ If you find a wallet, tip-address, or drain-risk bug:
 **Recommended (users):** download the **[Press release ZIP](https://github.com/ihelpmaybe/hearts-archive/releases/latest)** → unzip → **`START.cmd`** / **`START.sh`**.  
 No Node. Serves a **frozen** build on `http://127.0.0.1:5177/`. It only changes when **you** download a newer release.
 
-**Developers:** `npm run dev:press` or `npm run build && npm run pack:press`.
+**Studio (Trezor):** `hearts-archive-studio.zip` — same serve path, **Trezor Connect + Bridge** only. Not a software HD / mnemonic unlock. Needs Suite or Bridge on `:21325`. Desktop-only.
 
-**Demo preview** ([GitHub Pages](https://ihelpmaybe.github.io/hearts-archive/)): fine for reading. Prefer the release ZIP before connecting a funded wallet.
+**Developers:** `npm run dev:press` / `dev:studio` or `npm run pack:press` / `pack:studio`.
+
+**Gallery peek** ([GitHub Pages](https://ihelpmaybe.github.io/hearts-archive/) + Capacitor / PWA): **cannot spend**. Demo chip ≠ hardware. Tip via QR / copy only.
 
 ### “Add to Home Screen” on the live demo
 
@@ -25,7 +27,7 @@ No Node. Serves a **frozen** build on `http://127.0.0.1:5177/`. It only changes 
 
 ## What this app can spend
 
-Every spend is a **user-confirmed** wallet popup. There is no background drain, no hidden `approve`, and no WalletConnect relay.
+Every spend is a **user-confirmed** signature (injected wallet popup or Trezor screen). There is no background drain, no hidden `approve`, and no WalletConnect relay.
 
 | Action | Where value goes | What you pay |
 |---|---|---|
@@ -36,17 +38,18 @@ Every spend is a **user-confirmed** wallet popup. There is no background drain, 
 
 Burn to `0x…feed` is intentional (on-chain library / ranking). Wallet scanners often flag that pattern as “drain-looking.” It is not a transfer to a project EOA.
 
+## Tip QR
+
+QR encodes **EIP-681** for the story tip address on Pulse (`@369`). A malicious post could set `tipWallet` to an attacker. **Always verify the recipient on device** before sending.
+
 ## What this app cannot do
 
 - Cannot move funds without your signature
 - Does not request unlimited ERC-20 allowances
-- Does not use WalletConnect / Coinbase / Porto connectors (injected wallets only)
+- Does not use WalletConnect / Coinbase / Porto connectors (Press = injected; Studio = Trezor Connect)
 - Does not ask for seed phrases
 - Does not auto-update a local install
-
-## Tips — check the recipient
-
-Tips go to the **story’s** tip address (or author). A malicious post could set `tipWallet` to an attacker. Always read the address in your wallet confirm screen.
+- Gallery / phone Capacitor shell cannot publish, like, tip in-app, or bid A1
 
 ## Custom RPC
 

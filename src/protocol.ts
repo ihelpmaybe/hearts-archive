@@ -12,7 +12,7 @@ import {
 } from "viem";
 
 export const APP_NAME = "pulse-archive";
-export const APP_VERSION = "0.7.4";
+export const APP_VERSION = "0.8.0";
 export const CHUNK_BYTES = 20 * 1024;
 export const PULSE_CHAIN_ID = 369;
 /** Hard cap on original file size before publish (gas / orphan risk). */
@@ -239,7 +239,7 @@ export async function gzipCompress(bytes: Uint8Array): Promise<Uint8Array> {
   const copy = new Uint8Array(bytes);
   const stream = new Blob([copy])
     .stream()
-    .pipeThrough(new CompressionStream("gzip"));
+    .pipeThrough(new CompressionStream("gzip") as never);
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
@@ -250,7 +250,7 @@ export async function gzipDecompress(bytes: Uint8Array): Promise<Uint8Array> {
   const copy = new Uint8Array(bytes);
   const stream = new Blob([copy])
     .stream()
-    .pipeThrough(new DecompressionStream("gzip"));
+    .pipeThrough(new DecompressionStream("gzip") as never);
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 

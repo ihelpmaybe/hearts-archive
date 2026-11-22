@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Heart’s Archive</string>
+    <string name="title_activity_main">Heart’s Archive</string>
+    <string name="package_name">archive.hearts.gallery</string>
+    <string name="custom_url_scheme">archive.hearts.gallery</string>
+</resources>

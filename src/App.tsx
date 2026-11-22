@@ -20,13 +20,27 @@ import {
   type Hash,
 } from "viem";
 import { WalletBar } from "./WalletBar";
+import { DemoWalletBar } from "./DemoWalletBar";
+import { TrezorBar } from "./TrezorBar";
 import { ThemePicker } from "./ThemePicker";
-import { isDeskFace } from "./archiveFace";
+import {
+  isDeskFace,
+  isGalleryFace,
+  isReadOnlyFace,
+  isStudioFace,
+} from "./archiveFace";
 import { minA1Wei } from "./FrontBidBar";
 import { ArchiveUiProvider } from "./archiveUi";
 import { LibraryPage } from "./views/LibraryPage";
 import { PostPage } from "./views/PostPage";
 import { computeSyncLimits } from "./syncLimits";
+import { createStudioWalletClient } from "./trezor/studioWallet";
+import {
+  StudioDesktopGate,
+  useStudioDesktopBlocked,
+} from "./StudioDesktopGate";
+import { InstallBanner } from "./InstallBanner";
+import { shareStoryLink } from "./shareStory";
 import {
   DUEL_A,
   DUEL_B,
@@ -194,10 +208,37 @@ type LoadedDoc = {
 };
 
 export function App() {
-  const { address, isConnected, chainId } = useAccount();
+  const deskFace = isDeskFace();
+  const galleryFace = isGalleryFace();
+  const studioFace = isStudioFace();
+  const readOnlyFace = isReadOnlyFace();
+  const studioDesktopBlocked = useStudioDesktopBlocked();
+
+  const { address: injectedAddress, isConnected: injectedConnected, chainId } =
+    useAccount();
   const publicClient = usePublicClient({ chainId: pulsechain.id });
-  const { data: walletClient } = useWalletClient({ chainId: pulsechain.id });
+  const { data: injectedWalletClient } = useWalletClient({
+    chainId: pulsechain.id,
+  });
   const { sendTransactionAsync } = useSendTransaction();
+
+  const [studioAddress, setStudioAddress] = useState<string | null>(null);
+  const studioWalletClient = useMemo(
+    () =>
+      studioFace && studioAddress
+        ? createStudioWalletClient(studioAddress as `0x${string}`)
+        : null,
+    [studioFace, studioAddress],
+  );
+
+  const address = (studioFace ? studioAddress : injectedAddress) as
+    | `0x${string}`
+    | undefined;
+  const isConnected = studioFace ? !!studioAddress : injectedConnected;
+  const walletClient = studioFace ? studioWalletClient : injectedWalletClient;
+  const wrongChainInjected =
+    !studioFace && injectedConnected && chainId !== pulsechain.id;
+
   const { data: plsBalance } = useBalance({
     address,
     chainId: pulsechain.id,
@@ -312,13 +353,13 @@ export function App() {
     { hash: Hash; title: string; mimeType: string; savedAt: number }[]
   >([]);
 
-  const wrongChain = isConnected && chainId !== pulsechain.id;
+  const wrongChain = wrongChainInjected;
   /**
    * Desk face (npm run dev): no wallet gatekeeping — local publish.
-   * Press face (npm run build / dev:press): wallets on unless Lab seed.
+   * Gallery: read-only (no local spend theater).
+   * Press / Studio: wallets on unless Lab seed.
    * Same repo — not a second GitHub.
    */
-  const deskFace = isDeskFace();
   const walletUiOff = deskFace || labOn;
   const entriesRef = useRef(entries);
   const openHashRef = useRef<string | null>(null);
@@ -1339,6 +1380,10 @@ export function App() {
   }
 
   function clickPublish() {
+    if (readOnlyFace) {
+      setCiteMsg("Gallery is read-only — open Press or Studio to publish");
+      return;
+    }
     if (walletUiOff || !isConnected || !walletClient) {
       void publishLocalTest();
       return;
@@ -1354,7 +1399,7 @@ export function App() {
     if (!resume) setChunks([]);
     setLastManifest(null);
     try {
-      if (chainId !== pulsechain.id) {
+      if (!studioFace && chainId !== pulsechain.id) {
         throw new Error("Wrong network — hit Switch to Pulse in the top bar.");
       }
       if (
@@ -1510,11 +1555,22 @@ export function App() {
 
   async function copyLink() {
     if (!doc) return;
-    await navigator.clipboard.writeText(shareUrl(doc.manifestHash));
-    setCiteMsg("Link copied");
+    try {
+      const result = await shareStoryLink({
+        url: shareUrl(doc.manifestHash),
+        title: doc.title || "Heart’s Archive",
+      });
+      setCiteMsg(result === "shared" ? "Shared" : "Link copied");
+    } catch {
+      /* user cancelled share */
+    }
   }
 
   async function tipAuthor() {
+    if (readOnlyFace) {
+      setTipError("Gallery is read-only — scan the tip QR or use Press/Studio.");
+      return;
+    }
     if (!doc?.from || !walletClient || !publicClient || !address) return;
     if (wrongChain) {
       setTipError("Wrong network — hit Switch to Pulse.");
@@ -1534,11 +1590,18 @@ export function App() {
       if (tipTokenId === "PLS" || (preset && !preset.address)) {
         const value = parseEther(tipAmount || "0");
         if (value <= 0n) throw new Error("Enter an amount");
-        const hash = await sendTransactionAsync({
-          to,
-          value,
-          chainId: pulsechain.id,
-        });
+        const hash = studioFace
+          ? await walletClient.sendTransaction({
+              account: address,
+              chain: pulsechain,
+              to,
+              value,
+            })
+          : await sendTransactionAsync({
+              to,
+              value,
+              chainId: pulsechain.id,
+            });
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") throw new Error("Tip reverted");
         setTipOk(`Sent ${tipAmount} PLS`);
@@ -1655,6 +1718,10 @@ export function App() {
 
   async function buyFrontPage() {
     if (!doc) return;
+    if (readOnlyFace) {
+      setFrontError("Gallery is read-only — A1 needs Press or Studio.");
+      return;
+    }
     const localBid = walletUiOff || !walletClient || !publicClient || !address;
     if (!localBid && wrongChain) {
       setFrontError("Wrong network — wallet chip → Switch to Pulse.");
@@ -1831,6 +1898,10 @@ export function App() {
 
   async function likeDoc() {
     if (!doc) return;
+    if (readOnlyFace) {
+      setLikeError("Gallery is read-only — likes need Press or Studio.");
+      return;
+    }
     const localTest = walletUiOff || !walletClient || !address;
     const likeFrom = localTest ? LAB_FROM : address!.toLowerCase();
     if (!localTest && wrongChain) {
@@ -2086,8 +2157,14 @@ export function App() {
     tomorrowKey,
   ]);
 
+  if (studioFace && studioDesktopBlocked) {
+    return <StudioDesktopGate />;
+  }
+
   return (
-    <div className={`app${mobileToolsOpen ? " app--tools-open" : ""}`}>
+    <div
+      className={`app${mobileToolsOpen ? " app--tools-open" : ""}${galleryFace ? " app--gallery" : ""}${studioFace ? " app--studio" : ""}`}
+    >
       <a className="skip-link" href="#main">
         Skip to paper
       </a>
@@ -2096,6 +2173,7 @@ export function App() {
           You’re offline — local shelf still works; Sync needs a network.
         </p>
       )}
+      <InstallBanner />
       <div className="rail">
         {tab === "library" && (
           <details
@@ -2282,6 +2360,7 @@ export function App() {
         )}
         <div className="rail-actions">
         {tab === "library" ? (
+          !galleryFace ? (
           <button
             type="button"
             className="ghost rail-act rail-act--write"
@@ -2295,6 +2374,18 @@ export function App() {
             Write
             {incomplete ? <span className="tab-dot warn" aria-hidden /> : null}
           </button>
+          ) : (
+          <button
+            type="button"
+            className="ghost rail-act rail-act--write"
+            title="Gallery is read-only"
+            onClick={() =>
+              setCiteMsg("Gallery is read-only — open Press or Studio to publish")
+            }
+          >
+            Write
+          </button>
+          )
         ) : (
           <button
             type="button"
@@ -2318,7 +2409,21 @@ export function App() {
         <span className="rail-act rail-act--chrome">
           <ThemePicker />
         </span>
-        {!walletUiOff && (
+        {galleryFace && (
+          <span className="rail-act rail-act--chrome">
+            <DemoWalletBar />
+          </span>
+        )}
+        {studioFace && !walletUiOff && (
+          <span className="rail-act rail-act--chrome">
+            <TrezorBar
+              address={studioAddress}
+              onConnected={(r) => setStudioAddress(r.address)}
+              onDisconnect={() => setStudioAddress(null)}
+            />
+          </span>
+        )}
+        {!walletUiOff && !galleryFace && !studioFace && (
           <span className="rail-act rail-act--chrome">
             <WalletBar
               onUseAsAuthor={(a) => {
@@ -2336,7 +2441,23 @@ export function App() {
             Desk · DEV ONLY
           </span>
         )}
-        {!deskFace && labOn && (
+        {galleryFace && (
+          <span
+            className="meta rail-lab rail-act rail-act--desk"
+            title="Read-only Gallery — tip via QR; publish needs Press or Studio"
+          >
+            Gallery · read-only
+          </span>
+        )}
+        {studioFace && (
+          <span
+            className="meta rail-lab rail-act rail-act--desk"
+            title="Studio — Trezor Connect + Bridge"
+          >
+            Studio · Trezor
+          </span>
+        )}
+        {!deskFace && !galleryFace && labOn && (
           <span
             className="meta rail-lab rail-act rail-act--desk"
             title="Lab seed on — wallet chrome off until you uncheck Lab"
@@ -2370,6 +2491,9 @@ export function App() {
     copyCite,
     copyLink,
     deskFace,
+    galleryFace,
+    readOnlyFace,
+    studioFace,
     doc,
     editionCursorKey,
     editionOpen,
@@ -2528,10 +2652,20 @@ export function App() {
           }
           aria-current={tab === "post" ? "page" : undefined}
           aria-label={
-            incomplete ? "Write, publish paused" : "Write"
+            galleryFace
+              ? "Write unavailable in Gallery"
+              : incomplete
+                ? "Write, publish paused"
+                : "Write"
           }
           onClick={() => {
             setMobileToolsOpen(false);
+            if (galleryFace) {
+              setCiteMsg(
+                "Gallery is read-only — open Press or Studio to publish",
+              );
+              return;
+            }
             setWriteMode("compose");
             setTab("post");
           }}
@@ -2541,11 +2675,11 @@ export function App() {
           </span>
           <span className="mobile-tab-label">
             Write
-            {incomplete ? (
+            {incomplete && !galleryFace ? (
               <span className="tab-dot warn" aria-hidden />
             ) : null}
           </span>
-          {incomplete ? (
+          {incomplete && !galleryFace ? (
             <span className="sr-only">Publish paused — open Write to finish</span>
           ) : null}
         </button>

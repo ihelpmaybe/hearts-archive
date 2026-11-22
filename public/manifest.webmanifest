@@ -1,7 +1,7 @@
 {
   "name": "Heart’s Archive",
   "short_name": "Hearts",
-  "description": "On-chain newspaper for PulseChain. Text stories and PLS A1 bids at 0x…feed.",
+  "description": "Heart’s Archive Gallery — read the PulseChain paper, tip via QR. Publish needs Press or Studio.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

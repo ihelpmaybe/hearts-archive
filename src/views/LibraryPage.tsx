@@ -17,6 +17,7 @@ import { CUSTOM_TIP_ID, TIP_PRESETS, isAddressLike } from "../tipTokens";
 import { SCAN_TX } from "../protocol";
 import { getCachedDoc } from "../cache";
 import { unpackArticle } from "../articleFormat";
+import { TipQr } from "../TipQr";
 
 /** Extracted view — state lives in App via ArchiveUiProvider. */
 export function LibraryPage() {
@@ -35,6 +36,7 @@ export function LibraryPage() {
     copyCite,
     copyLink,
     deskFace,
+    readOnlyFace,
     doc,
     editionCursorKey,
     editionOpen,
@@ -676,6 +678,7 @@ export function LibraryPage() {
                           </div>
                         )}
                       <MoneyStrip>
+                      {!readOnlyFace && (
                       <div className="reader-actions">
                         <button
                           type="button"
@@ -758,7 +761,32 @@ export function LibraryPage() {
                           </>
                         )}
                       </div>
-                      {doc.from && isConnected && (
+                      )}
+                      {doc.from &&
+                        isAddressLike(
+                          doc.tipWallet && isAddressLike(doc.tipWallet)
+                            ? doc.tipWallet
+                            : doc.from,
+                        ) && (
+                          <TipQr
+                            tipTo={
+                              doc.tipWallet && isAddressLike(doc.tipWallet)
+                                ? doc.tipWallet
+                                : doc.from
+                            }
+                            amountPls={
+                              !readOnlyFace && tipTokenId === "PLS"
+                                ? tipAmount
+                                : undefined
+                            }
+                            label={
+                              readOnlyFace
+                                ? "Scan to tip (Gallery)"
+                                : "Scan to tip"
+                            }
+                          />
+                        )}
+                      {doc.from && isConnected && !readOnlyFace && (
                         <p className="meta tip-to-hint">
                           Tip goes to{" "}
                           {shortAddr(
@@ -774,7 +802,7 @@ export function LibraryPage() {
                       )}
                       {likeError && <p className="status bad">{likeError}</p>}
                       {tipError && <p className="status bad">{tipError}</p>}
-                      {(isConnected || walletUiOff) && (
+                      {!readOnlyFace && (isConnected || walletUiOff) && (
                         <FrontBidBar
                           bidForDay={bidForDay}
                           frontAmount={frontAmount}
@@ -820,7 +848,7 @@ export function LibraryPage() {
                             className="ghost"
                             onClick={() => void copyLink()}
                           >
-                            Link
+                            Share
                           </button>
                           <a
                             href={SCAN_TX(doc.manifestHash)}

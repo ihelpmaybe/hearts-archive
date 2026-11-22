@@ -1,4 +1,4 @@
-name: Release Press ZIP
+name: Release Press + Studio ZIPs
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  press-zip:
+  release-zips:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,31 +17,41 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
-      - name: Build Press (base /)
-        env:
-          VITE_ARCHIVE_FACE: press
-        run: npm run build
-      - name: Pack ZIP
-        run: node scripts/pack-press.mjs
-      - name: Upload artifact
+      - run: npm ci --ignore-scripts
+      - name: Pack Press ZIP
+        run: npm run pack:press
+      - name: Pack Studio ZIP
+        run: npm run pack:studio
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hearts-archive-press
-          path: out/hearts-archive-press.zip
+          name: hearts-archive-zips
+          path: |
+            out/hearts-archive-press.zip
+            out/hearts-archive-studio.zip
       - name: GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: out/hearts-archive-press.zip
+          files: |
+            out/hearts-archive-press.zip
+            out/hearts-archive-studio.zip
           generate_release_notes: true
           body: |
-            ## Press (no Node)
+            ## Heart’s Archive 0.8.0
 
+            ### Press (everyday — injected wallet)
             1. Download **hearts-archive-press.zip**
-            2. Unzip
-            3. Double-click **START.cmd** (Windows) or run **./START.sh** (Mac/Linux)
-            4. Connect Pulse wallet → Write → Publish → Buy A1 if you want the lead
+            2. Unzip → **START.cmd** / **./START.sh**
+            3. Connect Pulse wallet → Write → Publish → Buy A1
 
-            Frozen build — only changes when **you** download a newer release.
-            Money paths: `SECURITY.md` inside the ZIP · Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/
+            ### Studio (desktop — Trezor Connect + Bridge)
+            1. Download **hearts-archive-studio.zip**
+            2. Unzip → **START.cmd** / **./START.sh** on a PC with Suite/Bridge
+            3. **Connect Trezor** → publish / like / tip / A1
+
+            ### Gallery (read-only)
+            GitHub Pages peek + tip QR / PWA. Capacitor `android/` + `ios/` in repo (signed iOS needs Mac + Xcode).
+
+            Frozen ZIPs — only change when **you** download a newer release.
+            Money paths: `SECURITY.md` inside each ZIP · Peek: https://ihelpmaybe.github.io/hearts-archive/
