@@ -116,6 +116,17 @@ export function PostPage() {
                     setIncomplete(null);
                     setChunks([]);
                   }}
+                  onRestoreDraft={() => {
+                    setTitle(incomplete.title || "");
+                    setBodyText(incomplete.bodyText || "");
+                    setPictureText(incomplete.pictureText || "");
+                    setTagsRaw(incomplete.tagsRaw || "");
+                    setSummary(incomplete.summary || "");
+                    setLang(incomplete.lang || "");
+                    setLicense(incomplete.license || "");
+                    setReplaces(incomplete.replaces || "");
+                    setPubError(null);
+                  }}
                 />
               )}
               {writeMode === "preview" ? (
@@ -422,8 +433,8 @@ export function PostPage() {
                     </div>
                     <p className="meta a1-price-hint">{a1PriceHint}</p>
                     <p className="meta">
-                  Preview = faces only. Desk = DEV sandbox. Real app = Press
-                  (start-press.cmd / npm run dev:press).
+                      Preview = faces only. Desk = DEV sandbox. Real app =
+                      Releases → Press ZIP → START.cmd (no Node).
                     </p>
                     {wrongChain && isConnected && (
                       <p className="status bad">

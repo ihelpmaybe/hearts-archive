@@ -16,7 +16,7 @@ import {
 import { LAB_FROM } from "./uiBits";
 import { sha256Hex } from "./protocol";
 
-const GUIDE_TAG = "hearts-archive-publish-howto-v4";
+const GUIDE_TAG = "hearts-archive-publish-howto-v5";
 
 /** Default type-cut for the empty-Open publish guide. */
 const ASCII_MARK = `
@@ -103,7 +103,7 @@ SYNC
 • Hit Sync to pull other people’s …feed ink into this device.
 • This guide disappears from the lead when a real bid owns the day.
 
-Have low expectations. BETA.
+BETA — text paper on Pulse. Ship something short.
 `.trim();
 }
 
@@ -155,7 +155,7 @@ export async function buildPublishGuide(
   const filedAt = Math.min(now - 60, start - 60);
   const title = "HOW TO PUBLISH ON THIS PAPER";
   const summary =
-    "No story yet — local publish guide. Desk = DEV ONLY. Real app = Press (start-press.cmd).";
+    "No story yet — local publish guide. Desk = DEV ONLY. Real app = Press ZIP → START.cmd.";
 
   const entry: ArchiveEntry = {
     hash,

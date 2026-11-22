@@ -2119,8 +2119,12 @@ textarea:disabled {
 input[type="text"]:focus,
 textarea:focus,
 select:focus {
-  outline: none;
   border-color: var(--accent);
+}
+input[type="text"]:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
 }
 
 button {
@@ -2446,6 +2450,19 @@ button.linkish:disabled {
 
 a {
   color: var(--accent-hot);
+}
+
+/* Keyboard focus — don’t strip rings without a replacement */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+.ghost:focus-visible,
+.primary:focus-visible,
+.edition-day-btn:focus-visible,
+.mobile-tab:focus-visible {
+  outline: 2px solid var(--accent-hot);
+  outline-offset: 2px;
 }
 
 /* Home-screen / installed PWA */

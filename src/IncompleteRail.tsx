@@ -11,6 +11,7 @@ export function IncompleteRail({
   onRetry,
   onGiveUp,
   onOpenPost,
+  onRestoreDraft,
 }: {
   incomplete: IncompletePublish;
   publishing: boolean;
@@ -20,6 +21,8 @@ export function IncompleteRail({
   onGiveUp: () => void;
   /** When shown on the library face — jump to Post. */
   onOpenPost?: () => void;
+  /** Put stuck draft text back into the compose fields. */
+  onRestoreDraft?: () => void;
 }) {
   const done = incompleteDoneCount(incomplete);
   return (
@@ -44,6 +47,16 @@ export function IncompleteRail({
         >
           {publishing ? "Finishing…" : "Retry"}
         </button>
+        {shaMismatch && onRestoreDraft && (
+          <button
+            type="button"
+            className="ghost"
+            disabled={publishing}
+            onClick={onRestoreDraft}
+          >
+            Restore draft
+          </button>
+        )}
         <button
           type="button"
           className="ghost"
@@ -55,8 +68,8 @@ export function IncompleteRail({
       </div>
       {shaMismatch && (
         <p className="status bad" style={{ margin: "0.35rem 0 0" }}>
-          Text changed — use Restore draft (or paste the original) so the sha
-          matches, then Retry.
+          Text changed — hit <strong>Restore draft</strong> (or paste the
+          original), then Retry.
         </p>
       )}
     </div>

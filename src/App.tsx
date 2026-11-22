@@ -998,12 +998,10 @@ export function App() {
             return dedupeFrontBids([guide.front, ...withoutGuide]);
           });
           if (!deep) {
+            // Land on the paper face — guide is A1; user opens it if they want.
             setEditionDay(openDay);
             setPaperPage("A");
             setTab("library");
-            // Always open the article — prior sessions saved the guide bid
-            // and used to skip this, so Desk looked “empty” of instructions.
-            await load(guide.entry.hash);
           }
         } else if (!deep) {
           setEditionDay(openDay);
@@ -2236,7 +2234,7 @@ export function App() {
         {deskFace && (
           <span
             className="meta rail-lab rail-lab--warn rail-act rail-act--desk"
-            title="DEV ONLY — local sandbox. Real app: ZIP + start-press.cmd (or npm run dev:press)"
+            title="DEV ONLY — local sandbox. Real app: Releases → hearts-archive-press.zip → START.cmd"
           >
             Desk · DEV ONLY
           </span>
