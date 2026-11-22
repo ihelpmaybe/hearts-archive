@@ -2367,6 +2367,10 @@ label.file-btn {
   background: color-mix(in srgb, var(--ok) 12%, transparent);
 }
 
+.reader-live {
+  margin: 0 0 0.55rem;
+}
+
 .boot-shell {
   min-height: 40vh;
   display: grid;

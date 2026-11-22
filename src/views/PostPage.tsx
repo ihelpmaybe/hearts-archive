@@ -155,7 +155,11 @@ export function PostPage() {
                             : undefined
                         }
                       >
-                        {publishing ? "…" : "Publish"}
+                        {publishing
+                          ? chunks.length
+                            ? `${chunks.filter((c: { status: string }) => c.status === "done").length}/${chunks.length}…`
+                            : "Signing…"
+                          : "Publish"}
                       </button>
                     </div>
                   </div>
@@ -420,7 +424,11 @@ export function PostPage() {
                             : undefined
                         }
                       >
-                        {publishing ? "…" : "Publish"}
+                        {publishing
+                          ? chunks.length
+                            ? `${chunks.filter((c: { status: string }) => c.status === "done").length}/${chunks.length}…`
+                            : "Signing…"
+                          : "Publish"}
                       </button>
                       {canRetry && (
                         <button
@@ -446,7 +454,8 @@ export function PostPage() {
                     </p>
                     {wrongChain && isConnected && (
                       <p className="status bad">
-                        Wrong network — hit Switch to Pulse in the top bar.
+                        Wrong network — open the Pulse wallet chip → Switch to
+                        Pulse.
                       </p>
                     )}
                     {pubError && <p className="status bad">{pubError}</p>}

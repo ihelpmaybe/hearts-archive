@@ -51,6 +51,7 @@ export function LibraryPage() {
     isConnected,
     labNote,
     labOn,
+    lastManifest,
     leadPicture,
     likeCounts,
     likeDoc,
@@ -76,6 +77,7 @@ export function LibraryPage() {
     setEditionDay,
     setFrontAmount,
     setIncomplete,
+    setLastManifest,
     setPaperPage,
     setTab,
     setTipAmount,
@@ -646,6 +648,26 @@ export function LibraryPage() {
                             : ""}
                         </p>
                       )}
+                      {lastManifest &&
+                        doc.manifestHash.toLowerCase() ===
+                          lastManifest.toLowerCase() && (
+                          <div className="live-strip reader-live">
+                            <p className="status ok" style={{ margin: 0 }}>
+                              {frontWinner?.manifest?.toLowerCase() ===
+                              doc.manifestHash.toLowerCase()
+                                ? "You’re live · leading A1"
+                                : "You’re live — not A1 yet. Bid PLS below for the lead."}
+                            </p>
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => setLastManifest(null)}
+                              title="Dismiss"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        )}
                       <MoneyStrip>
                       <div className="reader-actions">
                         <button

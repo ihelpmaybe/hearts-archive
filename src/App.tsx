@@ -1638,7 +1638,7 @@ export function App() {
     if (!doc) return;
     const localBid = walletUiOff || !walletClient || !publicClient || !address;
     if (!localBid && wrongChain) {
-      setFrontError("Wrong network — hit Switch to Pulse.");
+      setFrontError("Wrong network — wallet chip → Switch to Pulse.");
       return;
     }
     let valueWei: bigint;
@@ -1706,6 +1706,12 @@ export function App() {
           : `A1 for ${forDay} — ${formatPls(valueWei)} PLS`,
       );
       setEditionDay(forDay);
+      if (
+        lastManifest &&
+        doc.manifestHash.toLowerCase() === lastManifest.toLowerCase()
+      ) {
+        setLastManifest(null);
+      }
     } catch (e) {
       setFrontError(e instanceof Error ? e.message : String(e));
       setFrontOk(null);
@@ -1713,6 +1719,22 @@ export function App() {
       setFronting(false);
     }
   }
+
+  /** Keep A1 amount at least one wei above the current lead (whole PLS). */
+  useEffect(() => {
+    if (!doc) return;
+    const need = minA1Wei(frontWinner);
+    let cur = 0n;
+    try {
+      cur = parseEther(frontAmount || "0");
+    } catch {
+      cur = 0n;
+    }
+    if (cur >= need) return;
+    const wholePls = (need + 10n ** 18n - 1n) / 10n ** 18n;
+    setFrontAmount(wholePls.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only bump when lead/story changes
+  }, [doc?.manifestHash, frontWinner?.valueWei, frontWinner?.hash]);
 
   /** Desk-only: seed rivals + race PLS through A1→A3→B1. */
   async function runA1A2Duel() {
@@ -2291,6 +2313,7 @@ export function App() {
     labOn,
     lang,
     lastManifest,
+    setLastManifest,
     leadPicture,
     license,
     likeCounts,
