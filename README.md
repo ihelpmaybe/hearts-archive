@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/license-Proprietary-red)](./LICENSE)
 
 <p align="center">
-  <img src="public/brand/ha-logo.jpg" alt="Heart’s Archive — HA logo" width="220" />
+  <img src="public/brand/ha-banner.png" alt="Heart’s Archive — on-chain newspaper for PulseChain" width="520" />
 </p>
 
 **On-chain newspaper for [PulseChain](https://pulsechain.com).**  
