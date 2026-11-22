@@ -4,7 +4,8 @@ import { softMuteHit } from "./softMute";
 import { TypeCutPicture } from "./TypeCutPicture";
 
 export const PREVIEW_FROM = "0xpreview00000000000000000000000000000001";
-export const LAB_FROM = "0xlab000000000000000000000000000000000001";
+/** Valid hex so tip QR / address checks work on lab docs — not a funded key. */
+export const LAB_FROM = "0x1000000000000000000000000000000000000001";
 
 export function shortAddr(a: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
