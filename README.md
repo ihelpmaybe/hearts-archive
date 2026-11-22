@@ -3,6 +3,7 @@
 [![Check](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/check.yml)
 [![Pages](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml/badge.svg)](https://github.com/ihelpmaybe/hearts-archive/actions/workflows/pages.yml)
 [![Latest release](https://img.shields.io/github/v/release/ihelpmaybe/hearts-archive?label=Press)](https://github.com/ihelpmaybe/hearts-archive/releases/latest)
+[![X](https://img.shields.io/badge/X-@HeartsArc-black)](https://x.com/HeartsArc)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](./LICENSE)
 
 <p align="center">
@@ -16,6 +17,7 @@ Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the le
 
 ### Share this
 
+**X:** [@HeartsArc](https://x.com/HeartsArc)  
 **Peek (read + tip QR):** https://ihelpmaybe.github.io/hearts-archive/  
 **Press ZIP (wallets):** https://github.com/ihelpmaybe/hearts-archive/releases/latest  
 
@@ -23,6 +25,7 @@ Copy/paste for X:
 
 ```
 Heart’s Archive — on-chain newspaper for PulseChain.
+@HeartsArc
 Read + tip QR: https://ihelpmaybe.github.io/hearts-archive/
 Publish (Press ZIP): https://github.com/ihelpmaybe/hearts-archive/releases/latest
 ```
