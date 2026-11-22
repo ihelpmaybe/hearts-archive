@@ -301,11 +301,19 @@ export function PostPage() {
                       <p className="meta">{asciiPromptMsg}</p>
                     )}
                     <textarea
-                      className="type-cut-paste compose-paste"
-                      rows={Math.min(
-                        28,
-                        Math.max(10, pictureText.split("\n").length + 2),
-                      )}
+                      className={
+                        pictureText.trim()
+                          ? "type-cut-paste compose-paste has-art"
+                          : "type-cut-paste compose-paste"
+                      }
+                      rows={
+                        pictureText.trim()
+                          ? Math.min(
+                              28,
+                              Math.max(8, pictureText.split("\n").length + 2),
+                            )
+                          : 3
+                      }
                       spellCheck={false}
                       wrap="off"
                       placeholder="Paste ASCII here, then click and edit by hand…"

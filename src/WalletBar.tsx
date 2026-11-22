@@ -79,6 +79,12 @@ export function WalletBar({ onUseAsAuthor }: Props) {
         })
       : null;
 
+  const lowPls =
+    isConnected &&
+    !wrongChain &&
+    pls != null &&
+    Number(pls.replace(/,/g, "")) < 1;
+
   async function copyAddr() {
     if (!address) return;
     await navigator.clipboard.writeText(address);
@@ -101,7 +107,6 @@ export function WalletBar({ onUseAsAuthor }: Props) {
       seen.add(key);
       return true;
     });
-    // Drop generic “Browser” when MetaMask/Rabby/… already listed
     const hasNamed = deduped.some((c) => !isGenericInjected(c.name));
     if (!hasNamed) return deduped;
     return deduped.filter((c) => !isGenericInjected(c.name));
@@ -111,74 +116,107 @@ export function WalletBar({ onUseAsAuthor }: Props) {
     <div className="wallet-bar">
       <div className="wallet-bar-main">
         {isConnected && address ? (
-          <>
-            <span
-              className={wrongChain ? "net-pill bad" : "net-pill ok"}
-              title={wrongChain ? `Chain ${chainId}` : "PulseChain"}
+          <div className="wallet-chip-wrap">
+            <button
+              type="button"
+              className={
+                wrongChain
+                  ? "wallet-chip is-bad"
+                  : lowPls
+                    ? "wallet-chip is-warn"
+                    : "wallet-chip"
+              }
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              title={address}
+              onClick={() => {
+                setRpcOpen(false);
+                setMenuOpen((o) => !o);
+              }}
             >
-              {wrongChain ? "Wrong net" : "Pulse"}
-            </span>
-            <span className="addr" title={address}>
-              {shortAddr(address)}
-            </span>
-            <span className="bal-pill">
-              {balLoading && !pls ? "…" : pls != null ? `${pls} PLS` : "—"}
-            </span>
-            {wrongChain && (
-              <button
-                type="button"
-                className="primary"
-                disabled={switching}
-                onClick={() => switchChain({ chainId: pulsechain.id })}
-                title="Wallet is on the wrong chain"
-              >
-                {switching ? "…" : "Switch to Pulse"}
-              </button>
-            )}
-            {isConnected &&
-              !wrongChain &&
-              pls != null &&
-              Number(pls.replace(/,/g, "")) < 1 && (
-                <span className="net-pill bad" title="Low PLS for gas">
-                  Low PLS
-                </span>
-              )}
-            <button type="button" className="ghost" onClick={() => void copyAddr()}>
-              {copied ? "OK" : "Copy"}
+              <span className="wallet-chip-net">
+                {wrongChain ? "Wrong net" : "Pulse"}
+              </span>
+              <span className="wallet-chip-addr">{shortAddr(address)}</span>
+              <span className="wallet-chip-bal">
+                {balLoading && !pls ? "…" : pls != null ? `${pls} PLS` : "—"}
+              </span>
+              {lowPls ? <span className="wallet-chip-flag">Low</span> : null}
+              <span className="wallet-chip-caret" aria-hidden>
+                ▾
+              </span>
             </button>
-            <a
-              className="ghost link-btn"
-              href={SCAN_ADDRESS(address)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Scan
-            </a>
-            {onUseAsAuthor && (
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => onUseAsAuthor(address)}
-              >
-                Find
-              </button>
+            {menuOpen && (
+              <div className="connect-menu wallet-overflow" role="menu">
+                {wrongChain && (
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={switching}
+                    onClick={() => switchChain({ chainId: pulsechain.id })}
+                  >
+                    {switching ? "…" : "Switch to Pulse"}
+                  </button>
+                )}
+                <button type="button" onClick={() => void copyAddr()}>
+                  {copied ? "Copied" : "Copy address"}
+                </button>
+                <a
+                  className="ghost link-btn"
+                  href={SCAN_ADDRESS(address)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View on scan
+                </a>
+                {onUseAsAuthor && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUseAsAuthor(address);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    Find as author
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setRpcOpen(true);
+                    setRpcDraft(rpcUrls[0] || "");
+                  }}
+                >
+                  RPC…
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    disconnect();
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
             )}
-            <button type="button" className="ghost" onClick={() => disconnect()}>
-              Disconnect
-            </button>
-          </>
+          </div>
         ) : (
-          <>
+          <div className="wallet-chip-wrap">
             <button
               type="button"
               className="primary"
               disabled={isPending || status === "connecting"}
-              onClick={() => setMenuOpen((o) => !o)}
+              onClick={() => {
+                setRpcOpen(false);
+                setMenuOpen((o) => !o);
+              }}
             >
               {isPending || status === "connecting" ? "…" : "Connect"}
             </button>
             {menuOpen && (
-              <div className="connect-menu">
+              <div className="connect-menu" role="menu">
                 {uniqueConnectors.map((c) => (
                   <button
                     key={c.uid}
@@ -196,22 +234,26 @@ export function WalletBar({ onUseAsAuthor }: Props) {
                   </button>
                 ))}
                 {uniqueConnectors.length === 0 && (
-                  <p className="meta">No wallet</p>
+                  <p className="meta" style={{ margin: 0, padding: "0.25rem" }}>
+                    No browser wallet found. Install MetaMask or Rabby, then
+                    refresh.
+                  </p>
                 )}
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setRpcOpen(true);
+                    setRpcDraft(rpcUrls[0] || "");
+                  }}
+                >
+                  RPC…
+                </button>
               </div>
             )}
-          </>
+          </div>
         )}
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => {
-            setRpcOpen((o) => !o);
-            setRpcDraft(rpcUrls[0] || "");
-          }}
-        >
-          RPC
-        </button>
       </div>
 
       {(connectError || switchError) && (
@@ -249,6 +291,13 @@ export function WalletBar({ onUseAsAuthor }: Props) {
               }}
             >
               Reset
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setRpcOpen(false)}
+            >
+              Close
             </button>
           </div>
         </div>
