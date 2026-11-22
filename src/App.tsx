@@ -40,6 +40,7 @@ import {
   useStudioDesktopBlocked,
 } from "./StudioDesktopGate";
 import { InstallBanner } from "./InstallBanner";
+import { openFaq } from "./FaqPanel";
 import { shareStoryLink } from "./shareStory";
 import {
   DUEL_A,
@@ -2355,6 +2356,18 @@ export function App() {
                   </button>
                 </div>
               </details>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setMobileToolsOpen(false);
+                  closeReader();
+                  // Let front page remount FAQ before scroll/hash.
+                  requestAnimationFrame(() => openFaq());
+                }}
+              >
+                FAQ
+              </button>
             </div>
           </details>
         )}

@@ -3173,6 +3173,103 @@ button:focus-visible,
   animation: fade-up 0.22s ease-out;
 }
 
+/* —— FAQ (paper face) —— */
+.masthead-links {
+  margin: 0.15rem 0 0.35rem;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.masthead-links .linkish {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+
+.masthead-links a {
+  color: var(--accent);
+}
+
+.faq-panel {
+  margin: 1.25rem 0 0.35rem;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+}
+
+.faq-panel-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem 0.85rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.faq-panel-summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-panel-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.faq-panel-dek {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.faq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  gap: 0.55rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.faq-item {
+  margin: 0;
+  padding: 0.45rem 0.55rem 0.5rem;
+  border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--panel-2) 55%, transparent);
+  font-size: 0.82rem;
+}
+
+.faq-item > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-a {
+  margin: 0.4rem 0 0.1rem;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 0.8rem;
+}
+
+.faq-foot {
+  margin: 0.75rem 0 0;
+}
+
+.faq-foot a {
+  color: var(--accent);
+}
+
 .live-strip {
   animation: fade-up 0.2s ease-out;
 }

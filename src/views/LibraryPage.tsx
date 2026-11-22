@@ -18,6 +18,7 @@ import { SCAN_TX } from "../protocol";
 import { getCachedDoc } from "../cache";
 import { unpackArticle } from "../articleFormat";
 import { TipQr } from "../TipQr";
+import { FaqPanel, openFaq } from "../FaqPanel";
 
 /** Extracted view — state lives in App via ArchiveUiProvider. */
 export function LibraryPage() {
@@ -227,6 +228,19 @@ export function LibraryPage() {
                 </div>
               </nav>
               <h1 className="nameplate">Heart’s Archive</h1>
+              <p className="masthead-links meta">
+                <button type="button" className="ghost linkish" onClick={openFaq}>
+                  FAQ
+                </button>
+                <span aria-hidden="true"> · </span>
+                <a
+                  href="https://x.com/HeartsArc"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  @HeartsArc
+                </a>
+              </p>
               <hr className="single-rule masthead-rule" />
             </header>
           
@@ -867,6 +881,7 @@ export function LibraryPage() {
                   )}
                 </div>
               )}
+              {!(doc && !isLocalPreviewDoc(doc?.from)) && <FaqPanel />}
             </section>
           
         </>
