@@ -104,4 +104,16 @@ Wire: [`PROTOCOL.md`](./PROTOCOL.md) · Patches: [`CONTRIBUTING.md`](./CONTRIBUT
 
 ## Status / rights
 
+**Latest:** [v0.8.1](https://github.com/ihelpmaybe/hearts-archive/releases/tag/v0.8.1) — Gallery · Press · Studio · tip QR.  
 **Not open source** — see [`LICENSE`](./LICENSE). Experimental; mainnet ink is forever.
+
+### Remaining (todo)
+
+| # | Todo | Issue |
+|---|---|---|
+| 1 | **Live money path** — Press (Chrome + Pulse wallet) · Studio (Bridge + Trezor) · phone tip QR scan | [#17](https://github.com/ihelpmaybe/hearts-archive/issues/17) |
+| 2 | **Android APK / device** — Capacitor `android/` needs SDK / Studio (or CI) | [#18](https://github.com/ihelpmaybe/hearts-archive/issues/18) |
+| 3 | **Dependabot vulns** — triage money-path risk vs noise | [#19](https://github.com/ihelpmaybe/hearts-archive/issues/19) |
+| 4 | **Protocol limits (known)** — `0x…feed` spam · Sync/Find paging · multi-chunk orphans | [#20](https://github.com/ihelpmaybe/hearts-archive/issues/20) |
+
+Non-goals for now: App Store submit, WalletConnect-in-Press, ERC-20 tip QRs, Electron.
