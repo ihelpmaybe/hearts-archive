@@ -8,7 +8,7 @@ const isPages = pagesBase !== "/" && pagesBase !== "./";
 const pressDesc =
   "Heart’s Archive — on-chain newspaper for PulseChain. Local Press for wallets; text stories and PLS A1 bids at 0x…feed.";
 const pagesDesc =
-  "Heart’s Archive — on-chain newspaper for PulseChain. Prefer local Press for wallets; this demo preview reloads from the host each visit.";
+  "Heart’s Archive — on-chain newspaper for PulseChain. Gallery peek (read + tip QR). Prefer Press/Studio ZIPs to publish or spend.";
 
 export default defineConfig({
   base: pagesBase,

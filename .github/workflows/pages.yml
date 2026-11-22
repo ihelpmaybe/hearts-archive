@@ -29,11 +29,8 @@ jobs:
           npm run typecheck
           npm run lint
           npm run test
-      - name: Build Press face for Pages
-        env:
-          VITE_BASE: /hearts-archive/
-          VITE_ARCHIVE_FACE: press
-        run: npm run build
+      - name: Build Gallery face for Pages
+        run: npm run build:pages
       - name: Pages dist smoke
         run: npm run smoke:pages
       - uses: actions/upload-pages-artifact@v3

@@ -70,6 +70,11 @@ ok(
   /manifest\.webmanifest/.test(html),
   "index links manifest",
 );
+ok("robots.txt", existsSync(join(dist, "robots.txt")));
+ok("sitemap.xml", existsSync(join(dist, "sitemap.xml")));
+ok("og:image", /property="og:image"/.test(html));
+ok("canonical", /rel="canonical"/.test(html));
+ok("json-ld", /application\/ld\+json/.test(html));
 
 const assets = existsSync(join(dist, "assets"))
   ? readdirSync(join(dist, "assets"))

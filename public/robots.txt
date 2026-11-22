@@ -1,0 +1,5 @@
+# Heart’s Archive — GitHub Pages peek (Gallery)
+User-agent: *
+Allow: /
+
+Sitemap: https://ihelpmaybe.github.io/hearts-archive/sitemap.xml
