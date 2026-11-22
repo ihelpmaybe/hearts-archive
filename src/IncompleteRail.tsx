@@ -27,7 +27,7 @@ export function IncompleteRail({
   const done = incompleteDoneCount(incomplete);
   const paperFace = !!onOpenPost;
   return (
-    <div className="incomplete-rail" role="status">
+    <div className="incomplete-rail" role="status" aria-live="polite">
       <p className="incomplete-rail-copy meta">
         {paperFace ? (
           <>

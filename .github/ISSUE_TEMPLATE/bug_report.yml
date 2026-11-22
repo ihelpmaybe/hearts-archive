@@ -1,0 +1,39 @@
+name: Bug / UX
+description: Something broken or confusing in Press or the demo peek
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: face
+    attributes:
+      label: Where?
+      options:
+        - Press ZIP (START.cmd / local)
+        - Demo peek (GitHub Pages)
+        - Desk / npm run dev
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: wallet
+    attributes:
+      label: Wallet involved?
+      options:
+        - No
+        - Yes — connect / switch network
+        - Yes — Publish / Like / Tip / A1
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps + what you expected. No seed phrases. Money-path / drain concerns → private security advisory, not here.
+      placeholder: 1. Opened Press… 2. Tapped Sync… 3. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version (VERSION.txt or corner vX.Y.Z)
+      placeholder: 0.7.3

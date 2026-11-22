@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Security / money-path concern
     url: https://github.com/ihelpmaybe/hearts-archive/security/advisories/new
@@ -6,3 +6,6 @@ contact_links:
   - name: Read SECURITY first
     url: https://github.com/ihelpmaybe/hearts-archive/blob/main/SECURITY.md
     about: What the app can spend, burn sink, tips, and local vs demo.
+  - name: Latest Press ZIP
+    url: https://github.com/ihelpmaybe/hearts-archive/releases/latest
+    about: Frozen local app — START.cmd / START.sh, no Node.

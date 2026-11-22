@@ -131,6 +131,7 @@ import {
   sendFrontBid,
   sendLike,
   sha256Hex,
+  shareUrl,
   type ChunkProgress,
   type DocType,
   type PreparedPublish,
@@ -704,7 +705,7 @@ export function App() {
         );
         if (lastSyncMs && Date.now() - lastSyncMs < 20_000) {
           if (mode === "manual") {
-            setBrowseError("Sync cooling down — try again in a few seconds.");
+            setCiteMsg("Sync cooling down — try again in a few seconds");
           }
           return;
         }
@@ -1507,6 +1508,12 @@ export function App() {
     setCiteMsg("Citation copied");
   }
 
+  async function copyLink() {
+    if (!doc) return;
+    await navigator.clipboard.writeText(shareUrl(doc.manifestHash));
+    setCiteMsg("Link copied");
+  }
+
   async function tipAuthor() {
     if (!doc?.from || !walletClient || !publicClient || !address) return;
     if (wrongChain) {
@@ -1535,6 +1542,7 @@ export function App() {
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") throw new Error("Tip reverted");
         setTipOk(`Sent ${tipAmount} PLS`);
+        setCiteMsg(`Sent ${tipAmount} PLS`);
         return;
       }
 
@@ -1583,6 +1591,7 @@ export function App() {
       if (receipt.status !== "success") throw new Error("Tip reverted");
       setRecentTips(rememberTipToken(tokenAddr));
       setTipOk(`Sent ${tipAmount} ${symbol}`);
+      setCiteMsg(`Sent ${tipAmount} ${symbol}`);
     } catch (e) {
       setTipError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1623,9 +1632,9 @@ export function App() {
     try {
       const backup = await buildLocalBackup();
       downloadBackupJson(backup);
-      setBackupMsg(
-        `Exported ${backup.shelf.length} shelf · ${backup.catalog.length} catalog`,
-      );
+      const msg = `Exported ${backup.shelf.length} shelf · ${backup.catalog.length} catalog`;
+      setBackupMsg(msg);
+      setCiteMsg(msg);
     } catch (e) {
       setBackupMsg(e instanceof Error ? e.message : String(e));
     }
@@ -1636,7 +1645,9 @@ export function App() {
       const raw = JSON.parse(await file.text()) as unknown;
       const n = await applyLocalBackup(raw);
       await loadLocalLibrary();
-      setBackupMsg(`Imported ${n.shelf} shelf · ${n.catalog} catalog`);
+      const msg = `Imported ${n.shelf} shelf · ${n.catalog} catalog`;
+      setBackupMsg(msg);
+      setCiteMsg(msg);
     } catch (e) {
       setBackupMsg(e instanceof Error ? e.message : String(e));
     }
@@ -1708,11 +1719,11 @@ export function App() {
         forDay,
       };
       setFronts((prev) => dedupeFrontBids([row, ...prev]));
-      setFrontOk(
-        localBid
-          ? `Desk bid · ${formatPls(valueWei)} PLS on ${forDay} (local)`
-          : `A1 for ${forDay} — ${formatPls(valueWei)} PLS`,
-      );
+      const ok = localBid
+        ? `Desk bid · ${formatPls(valueWei)} PLS on ${forDay} (local)`
+        : `A1 for ${forDay} — ${formatPls(valueWei)} PLS`;
+      setFrontOk(ok);
+      setCiteMsg(ok);
       setEditionDay(forDay);
       if (
         lastManifest &&
@@ -2274,6 +2285,7 @@ export function App() {
           <button
             type="button"
             className="ghost rail-act rail-act--write"
+            aria-label={incomplete ? "Write, publish paused" : "Write"}
             onClick={() => {
               setMobileToolsOpen(false);
               setWriteMode("compose");
@@ -2353,8 +2365,10 @@ export function App() {
     canRetry,
     chunks,
     clickPublish,
+    clearSearch,
     closeReader,
     copyCite,
+    copyLink,
     deskFace,
     doc,
     editionCursorKey,
@@ -2368,6 +2382,7 @@ export function App() {
     fronting,
     futureDisplayKey,
     gasHint,
+    hasActiveSearch,
     hasSectionA,
     incomplete,
     insideBands,
@@ -2512,6 +2527,9 @@ export function App() {
             tab === "post" ? "mobile-tab is-active" : "mobile-tab"
           }
           aria-current={tab === "post" ? "page" : undefined}
+          aria-label={
+            incomplete ? "Write, publish paused" : "Write"
+          }
           onClick={() => {
             setMobileToolsOpen(false);
             setWriteMode("compose");
@@ -2527,6 +2545,9 @@ export function App() {
               <span className="tab-dot warn" aria-hidden />
             ) : null}
           </span>
+          {incomplete ? (
+            <span className="sr-only">Publish paused — open Write to finish</span>
+          ) : null}
         </button>
         <button
           type="button"

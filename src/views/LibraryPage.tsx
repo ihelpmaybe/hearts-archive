@@ -14,7 +14,7 @@ import { isOpenPrintedDay, shiftUtcDay } from "../editions";
 import { softMuteHit } from "../softMute";
 import { clearIncomplete } from "../incomplete";
 import { CUSTOM_TIP_ID, TIP_PRESETS, isAddressLike } from "../tipTokens";
-import { SCAN_TX, shareUrl } from "../protocol";
+import { SCAN_TX } from "../protocol";
 import { getCachedDoc } from "../cache";
 import { unpackArticle } from "../articleFormat";
 
@@ -26,13 +26,14 @@ export function LibraryPage() {
     activeInside,
     activePage,
     address,
-    backupMsg,
     bidForDay,
     browseError,
     browsing,
     buyFrontPage,
+    clearSearch,
     closeReader,
     copyCite,
+    copyLink,
     deskFace,
     doc,
     editionCursorKey,
@@ -45,6 +46,7 @@ export function LibraryPage() {
     frontWinner,
     fronting,
     futureDisplayKey,
+    hasActiveSearch,
     hasSectionA,
     incomplete,
     insideBands,
@@ -56,7 +58,6 @@ export function LibraryPage() {
     likeCounts,
     likeDoc,
     likeError,
-    likeOk,
     likes,
     liking,
     load,
@@ -89,7 +90,6 @@ export function LibraryPage() {
     tipAmount,
     tipAuthor,
     tipError,
-    tipOk,
     tipTokenId,
     tipping,
     todayKey,
@@ -251,10 +251,13 @@ export function LibraryPage() {
                   }}
                 />
               )}
-              {backupMsg && <p className="meta">{backupMsg}</p>}
-              {frontOk && <p className="status ok">{frontOk}</p>}
-              {frontError && <p className="status bad">{frontError}</p>}
               {browseError && <p className="status bad">{browseError}</p>}
+              {!(doc && !isLocalPreviewDoc(doc.from)) && (
+                <>
+                  {frontOk && <p className="status ok">{frontOk}</p>}
+                  {frontError && <p className="status bad">{frontError}</p>}
+                </>
+              )}
               {labNote && labOn && (
                 <p className="meta lab-banner">{labNote}</p>
               )}
@@ -265,6 +268,10 @@ export function LibraryPage() {
                     <EmptyEdition
                       deskFace={deskFace}
                       syncing={browsing}
+                      mode={hasActiveSearch ? "search" : "cold"}
+                      onClearSearch={
+                        hasActiveSearch ? () => clearSearch() : undefined
+                      }
                       onWrite={() => {
                         setWriteMode("compose");
                         setTab("post");
@@ -766,9 +773,7 @@ export function LibraryPage() {
                         </p>
                       )}
                       {likeError && <p className="status bad">{likeError}</p>}
-                      {likeOk && <p className="status ok">{likeOk}</p>}
                       {tipError && <p className="status bad">{tipError}</p>}
-                      {tipOk && <p className="status ok">{tipOk}</p>}
                       {(isConnected || walletUiOff) && (
                         <FrontBidBar
                           bidForDay={bidForDay}
@@ -791,7 +796,6 @@ export function LibraryPage() {
                         />
                       )}
                       {frontError && <p className="status bad">{frontError}</p>}
-                      {frontOk && <p className="status ok">{frontOk}</p>}
                       </MoneyStrip>
                       <details className="more reader-more">
                         <summary>Cite &amp; tools</summary>
@@ -814,11 +818,7 @@ export function LibraryPage() {
                           <button
                             type="button"
                             className="ghost"
-                            onClick={() =>
-                              void navigator.clipboard.writeText(
-                                shareUrl(doc.manifestHash),
-                              )
-                            }
+                            onClick={() => void copyLink()}
                           >
                             Link
                           </button>

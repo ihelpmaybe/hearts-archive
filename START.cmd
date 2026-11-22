@@ -18,6 +18,7 @@ if not exist "dist\index.html" (
 
 echo.
 echo Heart's Archive — starting local Press ^(no Node^)…
+echo If port 5177 is busy, close the other Press window first.
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\serve-dist.ps1"

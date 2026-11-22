@@ -14,3 +14,8 @@ Demo peek (not locked): https://ihelpmaybe.github.io/hearts-archive/
 
 Money paths: SECURITY.md
 Rights: LICENSE (proprietary — not open source)
+
+Stuck?
+- Port 5177 already in use → close the other Press window, or set PORT=5180 (START.sh) / edit scripts\serve-dist.ps1 -Port
+- “No built Press” → you opened the source repo; download hearts-archive-press.zip from Releases instead
+- Browser blank → leave START running; open http://127.0.0.1:5177/ manually
