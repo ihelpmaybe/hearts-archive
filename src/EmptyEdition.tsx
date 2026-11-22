@@ -11,11 +11,14 @@ export function EmptyEdition({
   syncing: boolean;
 }) {
   return (
-    <div className="empty first-path">
-      <p className="empty-title">This paper is blank</p>
+    <div className={`empty first-path${syncing ? " is-syncing" : ""}`}>
+      <p className="empty-title">
+        {syncing ? "Looking for stories…" : "This paper is blank"}
+      </p>
       <p className="empty-dek">
-        Be first — publish a short story, then bid PLS for A1 if you want the
-        lead.
+        {syncing
+          ? "Syncing from Pulse — Write anytime while you wait."
+          : "Be first — publish a short story, then bid PLS for A1 if you want the lead."}
       </p>
       {deskFace ? (
         <p className="empty-dek status bad" style={{ marginTop: "0.5rem" }}>

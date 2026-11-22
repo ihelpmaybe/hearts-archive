@@ -784,6 +784,10 @@ export function App() {
         } catch {
           /* */
         }
+        setBrowseError(null);
+        if (mode === "manual") {
+          setCiteMsg("Synced");
+        }
       } catch (e) {
         const offline =
           typeof navigator !== "undefined" && navigator.onLine === false;
@@ -2188,6 +2192,11 @@ export function App() {
                     placeholder="Paste 0x… or #/369/0x…"
                     value={hashInput}
                     onChange={(e) => setHashInput(e.target.value.trim())}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      const h = parseRouteHash(hashInput);
+                      if (h && !reading) void openShare(h);
+                    }}
                     spellCheck={false}
                   />
                   <button
@@ -2393,7 +2402,11 @@ export function App() {
         {tab === "post" && <PostPage />}
       </ArchiveUiProvider>
 
-      {citeMsg && <div className="toast">{citeMsg}</div>}
+      {citeMsg && (
+        <div className="toast" role="status" aria-live="polite">
+          {citeMsg}
+        </div>
+      )}
 
       <nav className="mobile-tabbar" aria-label="App">
         <button

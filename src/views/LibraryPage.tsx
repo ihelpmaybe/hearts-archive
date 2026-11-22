@@ -261,7 +261,7 @@ export function LibraryPage() {
 
               {!(doc && !isLocalPreviewDoc(doc.from)) && !reading && (
                 <>
-                  {!browsing && filtered.length === 0 ? (
+                  {filtered.length === 0 ? (
                     <EmptyEdition
                       deskFace={deskFace}
                       syncing={browsing}
@@ -614,10 +614,10 @@ export function LibraryPage() {
                       </h2>
                       <p className="article-byline">
                         {isLabTestDoc(doc.from)
-                          ? "local test"
+                          ? "By local test"
                           : doc.from
-                            ? shortAddr(doc.from)
-                            : "unknown"}
+                            ? `By ${shortAddr(doc.from)}`
+                            : "By unknown"}
                         {formatPostedAt(doc.postedAt)
                           ? ` · ${formatPostedAt(doc.postedAt)}`
                           : ""}

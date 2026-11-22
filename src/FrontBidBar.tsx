@@ -1,7 +1,7 @@
 import { formatPls } from "./frontPage";
 import type { FrontBidEntry } from "./archive";
 
-/** Shared A1 bid chrome — Desk and Press use the same rules copy. */
+/** Shared A1 bid chrome — Desk and Press use the same rules. */
 export function FrontBidBar({
   bidForDay,
   frontAmount,
@@ -34,15 +34,17 @@ export function FrontBidBar({
   const leading =
     frontWinner &&
     frontWinner.manifest.toLowerCase() === docManifest.toLowerCase();
-  const label = leading
-    ? `Leading ${bidForDay} A1 · ${formatPls(frontWinner!.valueWei)} PLS — rebid higher if outbid (+1 wei can snipe)`
+  const floorWei = minA1Wei(frontWinner);
+  const floor = formatPls(floorWei);
+  const status = leading
+    ? `You’re A1 · ${formatPls(frontWinner!.valueWei)} PLS`
     : frontWinner
-      ? `${bidForDay} A1 is ${formatPls(frontWinner.valueWei)} PLS — bid more to take A1 (else you stay A2/below). Tip ≠ like ≠ bid.`
-      : `${bidForDay} A1 open — PLS only sets the lead (not gas). Like and tip are separate.`;
+      ? `Lead ${formatPls(frontWinner.valueWei)} PLS — bid more to take A1`
+      : `A1 open · bid PLS`;
 
   return (
     <div className="front-bid-bar">
-      <span className="front-bid-label">{label}</span>
+      <span className="front-bid-label">{status}</span>
       <input
         type="date"
         value={bidForDay}
@@ -56,7 +58,7 @@ export function FrontBidBar({
         value={frontAmount}
         onChange={(e) => onAmount(e.target.value)}
         aria-label="Front page PLS bid"
-        placeholder="PLS"
+        placeholder={`≥ ${floor}`}
       />
       <button
         type="button"
@@ -70,6 +72,13 @@ export function FrontBidBar({
       {wrongChain && !walletUiOff && (
         <span className="status bad">Wrong network — Switch to Pulse</span>
       )}
+      <details className="front-bid-help">
+        <summary>A1 rules</summary>
+        <p className="meta">
+          Highest PLS for the open day owns A1; top 3 = A1–A3. Rebid anytime
+          before UTC midnight (+1 wei can snipe). Tip ≠ like ≠ bid.
+        </p>
+      </details>
     </div>
   );
 }
