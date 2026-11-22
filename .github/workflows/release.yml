@@ -38,7 +38,7 @@ jobs:
             out/hearts-archive-studio.zip
           generate_release_notes: true
           body: |
-            ## Heart’s Archive 0.8.0
+            ## Heart’s Archive
 
             ### Press (everyday — injected wallet)
             1. Download **hearts-archive-press.zip**
