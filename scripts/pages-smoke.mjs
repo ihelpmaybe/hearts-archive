@@ -87,6 +87,22 @@ const assets = existsSync(join(dist, "assets"))
 ok("css chunk", assets.some((f) => f.endsWith(".css")));
 ok("js chunk", assets.some((f) => f.endsWith(".js")));
 
+const jsBlob = assets
+  .filter((f) => f.endsWith(".js"))
+  .map((f) => readFileSync(join(dist, "assets", f), "utf8"))
+  .join("\n");
+ok(
+  "showcase banner copy",
+  jsBlob.includes("Showcase peek") && jsBlob.includes("wallet front end"),
+  "Gallery Pages must ship ShowcaseBanner",
+);
+ok(
+  "gallery face baked",
+  /VITE_ARCHIVE_FACE["']?\s*:\s*["']gallery["']/.test(jsBlob) ||
+    jsBlob.includes('"gallery"') && jsBlob.includes("Showcase peek"),
+  "Pages build should be gallery face",
+);
+
 const themes = join(dist, "themes", "index.json");
 ok("themes/index.json", existsSync(themes));
 if (existsSync(themes)) {

@@ -44,4 +44,17 @@ describe("archiveFace", () => {
     expect(s.walletMode()).toBe("trezor");
     expect(s.isReadOnlyFace()).toBe(false);
   });
+
+  it("forces gallery on github.io even if env says press", async () => {
+    vi.stubEnv("VITE_ARCHIVE_FACE", "press");
+    vi.stubGlobal("window", {
+      location: { hostname: "ihelpmaybe.github.io" },
+    });
+    const { archiveFace, isGalleryFace, walletMode } = await import(
+      "./archiveFace"
+    );
+    expect(archiveFace()).toBe("gallery");
+    expect(isGalleryFace()).toBe(true);
+    expect(walletMode()).toBe("demo");
+  });
 });

@@ -58,15 +58,15 @@ export function DemoWalletBar() {
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
-        title="Demo · read-only — this face cannot spend"
+        title="Peek only — cannot spend. Download Press ZIP to use a real wallet."
       >
-        Demo · {shortAddr(addr)}
+        Peek · {shortAddr(addr)}
       </button>
       {open && (
         <div className="wallet-menu" role="menu">
           <p className="meta" style={{ margin: "0 0 0.5rem" }}>
-            This face cannot spend. Tip via QR or open Press / Studio to
-            publish.
+            Showcase chip — not a wallet. Tip via QR here, or download Press /
+            Studio ZIP → START.cmd to publish and spend on your machine.
           </p>
           <a
             href={RELEASES}
@@ -75,7 +75,7 @@ export function DemoWalletBar() {
             className="ghost link-btn"
             role="menuitem"
           >
-            Press / Studio releases
+            Download Press / Studio ZIP
           </a>
         </div>
       )}

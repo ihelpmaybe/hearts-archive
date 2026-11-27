@@ -80,6 +80,26 @@ body {
   font-size: 0.78rem;
 }
 
+.showcase-banner {
+  margin: 0 0 0.45rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--warn) 65%, var(--line));
+  background: color-mix(in srgb, var(--warn) 16%, var(--panel));
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.showcase-banner a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.showcase-banner code {
+  font-size: 0.85em;
+}
+
 .install-banner {
   display: flex;
   flex-wrap: wrap;
@@ -335,6 +355,22 @@ noscript {
   text-align: center;
   margin-bottom: 0.15rem;
   padding: 0.15rem 0 0;
+}
+
+.mascot-mark {
+  margin: 0.35rem auto 0.15rem;
+  padding: 0;
+  max-width: min(22rem, 92vw);
+}
+
+.mascot-mark-pic {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(48vh, 22rem);
+  margin: 0 auto;
+  object-fit: contain;
+  object-position: center bottom;
 }
 
 .brand h1,

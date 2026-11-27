@@ -18,16 +18,18 @@ Stories, likes, and A1 bids go to `0x…feed`. Highest PLS front-bid owns the le
 ### Share this
 
 **X:** [@HeartsArc](https://x.com/HeartsArc)  
-**Peek (read + tip QR):** https://ihelpmaybe.github.io/hearts-archive/  
-**Press ZIP (wallets):** https://github.com/ihelpmaybe/hearts-archive/releases/latest  
+**Peek (showcase — read + tip QR only):** https://ihelpmaybe.github.io/hearts-archive/  
+**Press ZIP (wallet / publish on your PC):** https://github.com/ihelpmaybe/hearts-archive/releases/latest  
+
+GitHub Pages is a **showcase**, not a wallet front end. Spend / publish only from the Press or Studio ZIP (`START.cmd` / `START.sh` locally).
 
 Copy/paste for X:
 
 ```
 Heart’s Archive — on-chain newspaper for PulseChain.
 @HeartsArc
-Read + tip QR: https://ihelpmaybe.github.io/hearts-archive/
-Publish (Press ZIP): https://github.com/ihelpmaybe/hearts-archive/releases/latest
+Read peek (no wallet): https://ihelpmaybe.github.io/hearts-archive/
+Publish (Press ZIP → START.cmd): https://github.com/ihelpmaybe/hearts-archive/releases/latest
 ```
 
 ---

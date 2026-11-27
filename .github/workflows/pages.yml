@@ -1,4 +1,4 @@
-name: GitHub Pages (Press)
+name: GitHub Pages (Gallery showcase)
 
 on:
   push:
@@ -29,6 +29,9 @@ jobs:
           npm run typecheck
           npm run lint
           npm run test
+      - name: Catalog mirror (Scan → else RPC tip → keep prior)
+        run: npm run catalog
+        continue-on-error: true
       - name: Build Gallery face for Pages
         run: npm run build:pages
       - name: Pages dist smoke

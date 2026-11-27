@@ -8,12 +8,24 @@
  *
  * Override: VITE_ARCHIVE_FACE=desk|press|gallery|studio
  * Default: vite `dev` → desk, `build` → press
+ *
+ * Hard rule: `*.github.io` always Gallery — never ship a wallet UI on Pages.
  */
 export type ArchiveFace = "desk" | "press" | "gallery" | "studio";
 
 export type WalletMode = "off" | "demo" | "injected" | "trezor";
 
+function hostForcesGallery(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return /\.github\.io$/i.test(window.location.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function archiveFace(): ArchiveFace {
+  if (hostForcesGallery()) return "gallery";
   const raw = (import.meta.env.VITE_ARCHIVE_FACE || "").toLowerCase();
   if (
     raw === "desk" ||
