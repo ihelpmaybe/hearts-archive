@@ -19,6 +19,7 @@ import { getCachedDoc } from "../cache";
 import { unpackArticle } from "../articleFormat";
 import { TipQr } from "../TipQr";
 import { FaqPanel, openFaq } from "../FaqPanel";
+import { MascotMark } from "../MascotMark";
 
 /** Extracted view — state lives in App via ArchiveUiProvider. */
 export function LibraryPage() {
@@ -881,7 +882,18 @@ export function LibraryPage() {
                   )}
                 </div>
               )}
-              {!(doc && !isLocalPreviewDoc(doc?.from)) && <FaqPanel />}
+              {!(doc && !isLocalPreviewDoc(doc?.from)) && (
+                <div
+                  className={
+                    press.lead || filtered.length > 0
+                      ? "library-foot library-foot--faq-only"
+                      : "library-foot"
+                  }
+                >
+                  {!press.lead && filtered.length === 0 && <MascotMark />}
+                  <FaqPanel />
+                </div>
+              )}
             </section>
           
         </>

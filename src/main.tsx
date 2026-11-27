@@ -16,7 +16,23 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={<div className="boot-shell">Heart’s Archive…</div>}>
+        <Suspense
+          fallback={
+            <div
+              className="boot-shell"
+              style={{
+                minHeight: "100vh",
+                display: "grid",
+                placeItems: "center",
+                margin: 0,
+                background: "#100805",
+                color: "#d0ad8c",
+              }}
+            >
+              Heart’s Archive…
+            </div>
+          }
+        >
           <App />
         </Suspense>
       </QueryClientProvider>

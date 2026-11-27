@@ -1,29 +1,32 @@
-/* Defaults = Light newsprint; packs (Venus / Light / Dark / Pulse) override */
+/* Defaults = Venus (dark) — matches theme index default; packs override after load.
+   Light newsprint used to live here and caused a white flash before theme JS. */
 :root {
-  --bg: #f3efe6;
-  --bg-glow: radial-gradient(1100px 480px at 50% -12%, rgba(255, 255, 255, 0.85) 0%, transparent 55%),
-    radial-gradient(700px 360px at 100% 100%, rgba(180, 150, 100, 0.12) 0%, transparent 50%);
-  --panel: #f7f3eb;
-  --panel-2: #ebe4d8;
-  --line: #141414;
-  --line-soft: rgba(20, 20, 20, 0.18);
-  --text: #121212;
-  --muted: #5a5348;
-  --accent: #8b1e1e;
-  --accent-hot: #b83232;
-  --accent-dim: #e8d9c8;
-  --gold: #8a6a28;
-  --warn: #9a6b12;
-  --bad: #a61e1e;
-  --ok: #2f6b45;
-  --radius: 0px;
-  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
-  --font-body: "Newsreader", Georgia, "Times New Roman", serif;
-  --font-ui: "Libre Franklin", "Segoe UI", sans-serif;
-  --font-nameplate: "Playfair Display", Georgia, serif;
+  --bg: #100805;
+  --bg-glow: radial-gradient(980px 560px at 6% -12%, rgba(255, 138, 31, 0.32) 0%, transparent 58%),
+    radial-gradient(720px 440px at 94% 0%, rgba(240, 199, 94, 0.2) 0%, transparent 52%),
+    radial-gradient(500px 300px at 50% 110%, rgba(255, 80, 40, 0.08) 0%, transparent 55%);
+  --panel: #1a100b;
+  --panel-2: #261710;
+  --line: #7a4a28;
+  --line-soft: rgba(255, 138, 31, 0.24);
+  --text: #fff8f0;
+  --muted: #d0ad8c;
+  --accent: #ff8a1f;
+  --accent-hot: #ffc06a;
+  --accent-dim: #5c2e0a;
+  --gold: #f0c75e;
+  --warn: #ffc14d;
+  --bad: #ff6b6b;
+  --ok: #7dcea0;
+  --radius: 14px;
+  --font-display: "Syne", "Avenir Next", sans-serif;
+  --font-body: "DM Sans", "Segoe UI", sans-serif;
+  --font-ui: "DM Sans", "Segoe UI", sans-serif;
+  --font-nameplate: "Fraunces", "Playfair Display", Georgia, serif;
   font-family: var(--font-body);
   color: var(--text);
   background: var(--bg);
+  color-scheme: dark;
   line-height: 1.45;
 }
 
@@ -357,20 +360,54 @@ noscript {
   padding: 0.15rem 0 0;
 }
 
-.mascot-mark {
-  margin: 0.35rem auto 0.15rem;
-  padding: 0;
-  max-width: min(22rem, 92vw);
+.library-foot {
+  display: grid;
+  grid-template-columns: minmax(9rem, 14rem) minmax(0, 1fr);
+  gap: 1rem 1.25rem;
+  align-items: end;
+  margin-top: 1.25rem;
+  padding-top: 0.35rem;
 }
 
-.mascot-mark-pic {
+.library-foot--faq-only {
+  grid-template-columns: 1fr;
+}
+
+.library-foot .mascot-mark {
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  justify-self: center;
+}
+
+.library-foot .mascot-mark-pic {
   display: block;
   width: 100%;
   height: auto;
-  max-height: min(48vh, 22rem);
-  margin: 0 auto;
+  max-height: min(42vh, 18rem);
+  margin: 0;
   object-fit: contain;
   object-position: center bottom;
+}
+
+.library-foot .faq-panel {
+  margin: 0;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .library-foot {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .library-foot .mascot-mark {
+    max-width: 11rem;
+  }
+
+  .library-foot .faq-panel {
+    width: 100%;
+  }
 }
 
 .brand h1,
@@ -2606,10 +2643,12 @@ label.file-btn {
 }
 
 .boot-shell {
-  min-height: 40vh;
+  min-height: 100vh;
   display: grid;
   place-items: center;
-  color: var(--muted);
+  /* Hardcoded — do not use theme vars (cream flash if Light CSS wins first). */
+  background: #100805;
+  color: #d0ad8c;
   font-size: 0.95rem;
 }
 

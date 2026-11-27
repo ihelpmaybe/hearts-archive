@@ -1,13 +1,50 @@
 <!doctype html>
-<html lang="en" data-theme="press">
+<html lang="en" data-theme="venus">
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#100805" />
+    <!-- Hard dark first paint — never cream before theme packs land. -->
+    <style id="ha-boot-paint">
+      html {
+        color-scheme: dark;
+        background: #100805 !important;
+        color: #fff8f0;
+      }
+      html,
+      body,
+      #root {
+        background: #100805 !important;
+        color: #fff8f0;
+      }
+      .boot-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        margin: 0;
+        background: #100805 !important;
+        color: #d0ad8c !important;
+        font: 0.95rem/1.4 system-ui, sans-serif;
+      }
+    </style>
+    <script>
+      (function () {
+        try {
+          var id =
+            localStorage.getItem("hearts-archive-theme-v5") ||
+            localStorage.getItem("hearts-archive-theme-v4") ||
+            "venus";
+          document.documentElement.setAttribute("data-theme", id);
+        } catch (e) {}
+        document.documentElement.style.colorScheme = "dark";
+        document.documentElement.style.backgroundColor = "#100805";
+        if (document.body) document.body.style.backgroundColor = "#100805";
+      })();
+    </script>
     <meta
       name="description"
       content="Heart’s Archive — on-chain newspaper for PulseChain. Local Press for wallets; text stories and PLS A1 bids at 0x…feed."
@@ -53,7 +90,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="icon" href="./icons/icon-64.png" type="image/png" sizes="64x64" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <title>Heart’s Archive</title>
     <script type="application/ld+json">
