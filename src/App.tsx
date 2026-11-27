@@ -107,9 +107,7 @@ import {
   upsertCatalog,
 } from "./catalog";
 import { loadLocalCatalog } from "./catalogLocal";
-import { loadCatalogMirrors } from "./catalogMirror";
 import { loadLabSeed } from "./labSeed";
-import { listSinkFromRpcTip } from "./rpcTipSync";
 import {
   buildPublishGuide,
   isPublishGuideEntry,
@@ -839,97 +837,31 @@ export function App() {
           setCiteMsg("Synced");
         }
       } catch (e) {
-        // Scan died — try hosted catalog mirror, then RPC tip walk.
-        let rescued = false;
-        try {
-          const [mirror, tip] = await Promise.all([
-            loadCatalogMirrors(),
-            listSinkFromRpcTip({
-              maxBlocks: 120,
-              onlyArchiveKind: archiveOnly,
-            }).catch(() => ({
-              entries: [],
-              likes: [],
-              fronts: [],
-              blocksScanned: 0,
-            })),
-          ]);
-          const remoteEntries = dedupeBySha256(
-            mergeShelfAndRemote(mirror, tip.entries),
+        const offline =
+          typeof navigator !== "undefined" && navigator.onLine === false;
+        const raw = e instanceof Error ? e.message : String(e);
+        const aborted =
+          (e instanceof Error && e.name === "AbortError") ||
+          /aborted|AbortError/i.test(raw);
+        const detail = offline
+          ? "You’re offline"
+          : aborted
+            ? "Pulse explorer timed out (retried) — try Sync again"
+            : raw || "Sync failed";
+        if (!base.length) {
+          setBrowseError(
+            mode === "manual"
+              ? aborted
+                ? "Couldn’t reach Pulse explorer after retries — try Sync again in a bit."
+                : `${detail} — nothing on this device yet. Write locally or Sync when Scan is up.`
+              : null,
           );
-          if (remoteEntries.length || tip.likes.length || tip.fronts.length) {
-            if (remoteEntries.length) {
-              await upsertCatalog(remoteEntries);
-              setEntries(
-                dedupeBySha256(mergeShelfAndRemote(base, remoteEntries)),
-              );
-            } else {
-              setEntries(base);
-            }
-            if (tip.likes.length) {
-              setLikes((prev) => dedupeLikes([...prev, ...tip.likes]));
-              void upsertCachedLikes(tip.likes);
-            }
-            if (tip.fronts.length) {
-              setFronts((prev) => dedupeFrontBids([...prev, ...tip.fronts]));
-            }
-            try {
-              localStorage.setItem(
-                "hearts-archive-last-sync",
-                String(Date.now()),
-              );
-            } catch {
-              /* */
-            }
-            setBrowseError(null);
-            if (mode === "manual") {
-              const via = tip.entries.length
-                ? "RPC tip"
-                : mirror.length
-                  ? "catalog mirror"
-                  : "tip likes/bids";
-              setCiteMsg(`Synced via ${via} (Scan down)`);
-            }
-            rescued = true;
-          }
-        } catch {
-          /* fall through to error UI */
-        }
-        if (rescued) {
-          /* ok */
         } else {
-          const offline =
-            typeof navigator !== "undefined" && navigator.onLine === false;
-          const raw = e instanceof Error ? e.message : String(e);
-          const aborted =
-            (e instanceof Error && e.name === "AbortError") ||
-            /aborted|AbortError/i.test(raw);
-          const indexerGap =
-            /indexer gap|empty for …feed|empty for \.\.\.feed/i.test(raw);
-          const detail = offline
-            ? "You’re offline"
-            : aborted
-              ? "Pulse explorer timed out (retried) — try Sync again"
-              : indexerGap
-                ? "Pulse Scan has no …feed index right now — try Sync later"
-                : raw || "Sync failed";
-          if (!base.length) {
-            setBrowseError(
-              mode === "manual"
-                ? aborted
-                  ? "Couldn’t reach Pulse explorer after retries — try Sync again in a bit."
-                  : indexerGap
-                    ? "Pulse Scan isn’t listing …feed yet — Write locally or Sync when Scan is up."
-                    : `${detail} — nothing on this device yet. Write locally or Sync when Scan is up.`
-                : null,
-            );
-          } else {
-            setBrowseError(
-              `${detail} — still showing your local library (${base.length}).`,
-            );
-          }
-          setEntries(base);
+          setBrowseError(
+            `${detail} — still showing your local library (${base.length}).`,
+          );
         }
+        setEntries(base);
       } finally {
         setBrowsing(false);
         void refreshRecentLocal();
