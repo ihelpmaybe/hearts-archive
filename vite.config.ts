@@ -34,6 +34,15 @@ export default defineConfig({
       },
     },
   ],
+  // Connect 10 pulls Node `events`; without this Vite externalizes it and build dies.
+  resolve: {
+    alias: {
+      events: "events",
+    },
+  },
+  optimizeDeps: {
+    include: ["events"],
+  },
   build: {
     chunkSizeWarningLimit: 900,
     rollupOptions: {

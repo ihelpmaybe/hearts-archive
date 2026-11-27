@@ -63,12 +63,13 @@
     "@capacitor/ios": "^7.4.3",
     "@capacitor/share": "^7.0.2",
     "@tanstack/react-query": "^5.107.1",
-    "@trezor/connect-web": "9.7.3",
+    "@trezor/connect-web": "^10.0.1",
+    "events": "^3.3.0",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "viem": "^2.57.17",
-    "wagmi": "^2.19.5"
+    "wagmi": "^3.7.11"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",
@@ -83,6 +84,6 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.46.4",
     "vite": "^6.4.6",
-    "vitest": "^3.2.4"
+    "vitest": "^5.1.2"
   }
 }
