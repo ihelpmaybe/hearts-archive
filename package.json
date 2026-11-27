@@ -80,7 +80,7 @@
     "@vitejs/plugin-react-swc": "^3.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
+    "eslint-plugin-react-refresh": "^0.5.8",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.46.4",
     "vite": "^6.4.6",
