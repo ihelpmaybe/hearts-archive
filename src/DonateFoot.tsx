@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FOOTER_DONATION } from "./data/wallets";
+import { resolveDonate } from "./data/resolveDonate";
 
 function shortAddr(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -7,10 +8,24 @@ function shortAddr(addr: string) {
 
 export function DonateFoot() {
   const [copied, setCopied] = useState(false);
+  const [donate, setDonate] = useState({
+    label: FOOTER_DONATION.label,
+    address: FOOTER_DONATION.address,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void resolveDonate(FOOTER_DONATION).then((next) => {
+      if (!cancelled) setDonate({ label: next.label, address: next.address });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(FOOTER_DONATION.address);
+      await navigator.clipboard.writeText(donate.address);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -20,9 +35,9 @@ export function DonateFoot() {
 
   return (
     <footer className="site-donate">
-      <span className="site-donate-label">{FOOTER_DONATION.label}</span>
-      <code className="site-donate-addr" title={FOOTER_DONATION.address}>
-        {shortAddr(FOOTER_DONATION.address)}
+      <span className="site-donate-label">{donate.label}</span>
+      <code className="site-donate-addr" title={donate.address}>
+        {shortAddr(donate.address)}
       </code>
       <button type="button" className="site-donate-copy ghost" onClick={copy}>
         {copied ? "Copied" : "Copy"}
