@@ -8,7 +8,7 @@ function shortAddr(addr: string) {
 
 export function DonateFoot() {
   const [copied, setCopied] = useState(false);
-  const [donate, setDonate] = useState({
+  const [donate, setDonate] = useState<{ label: string; address: string }>({
     label: FOOTER_DONATION.label,
     address: FOOTER_DONATION.address,
   });
