@@ -23,6 +23,7 @@ import { WalletBar } from "./WalletBar";
 import { DemoWalletBar } from "./DemoWalletBar";
 import { TrezorBar } from "./TrezorBar";
 import { ThemePicker } from "./ThemePicker";
+import { DonateFoot } from "./DonateFoot";
 import {
   isDeskFace,
   isGalleryFace,
@@ -2617,6 +2618,8 @@ export function App() {
           {citeMsg}
         </div>
       )}
+
+      <DonateFoot />
 
       <nav className="mobile-tabbar" aria-label="App">
         <button
